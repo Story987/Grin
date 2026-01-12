@@ -1,195 +1,135 @@
-name: Deploy Digital Garden
+name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
-  workflow_dispatch:
+    branches: [ "main", "master" ]
+    paths:
+      - 'src/site/notes/**'  # Триггерим только при изменениях в этой папке!
+      - '.github/workflows/deploy.yml'  # И при изменении самого workflow
+  workflow_dispatch:  # Можно запустить вручную
 
+# Оптимизация для быстрого деплоя
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# Защита от конфликтов
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5  # Безопасный таймаут для быстрых деплоев
+    
     steps:
-      - name: Checkout repository
+      # 1. Быстрая загрузка репозитория (только последний коммит)
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # Только последний коммит - быстрее!
       
-      # ШАГ 1: Проверяем и готовим папку notes
-      - name: Prepare notes directory
+      # 2. Создаем папку dist и копируем файлы
+      - name: Copy files to dist
         run: |
-          echo "🔍 Проверяю структуру проекта..."
+          # Очищаем предыдущую сборку
+          rm -rf dist
           
-          # 1. Проверяем, существует ли папка src/site/notes/
-          if [ ! -d "src/site/notes" ]; then
-            echo "⚠️ Папка src/site/notes не существует. Создаю..."
-            mkdir -p src/site/notes
+          # Копируем только нужную папку
+          mkdir -p dist
+          cp -r src/site/notes/* dist/ 2>/dev/null ||:
+          
+          # Проверяем, что index.html существует
+          if [ ! -f "dist/index.html" ]; then
+            echo "⚠️ Внимание: index.html не найден в src/site/notes/"
+            echo "Создаю простой index.html..."
+            cat > dist/index.html << EOF
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Grin Site</title>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body>
+              <h1>Сайт на GitHub Pages</h1>
+              <p>Добавьте index.html в src/site/notes/</p>
+              <p>Последнее обновление: $(date)</p>
+            </body>
+            </html>
+            EOF
           fi
           
-          # 2. Переходим в папку
-          cd src/site/notes/
-          echo "📁 Текущая папка: $(pwd)"
+          # Файл для отключения Jekyll
+          touch dist/.nojekyll
           
-          # 3. Показываем содержимое
-          echo "📋 Содержимое папки:"
-          ls -la || echo "Папка пуста"
-          
-          # 4. Считаем папки (сады)
-          GARDEN_COUNT=$(find . -maxdepth 1 -type d ! -name "." | wc -l)
-          echo "🌿 Найдено папок-садов: $GARDEN_COUNT"
-        
-      # ШАГ 2: Создаём ГЛАВНУЮ страницу (index.html)
-      - name: Create main index.html
+          # Быстрая проверка размера
+          echo "📊 Статистика сборки:"
+          find dist -type f | wc -l | xargs echo "Файлов:"
+          du -sh dist | cut -f1 | xargs echo "Размер:"
+      
+      # 3. Опционально: Автоматическое обновление даты в файлах
+      - name: Update timestamps (optional)
         run: |
-          cd src/site/notes/
-          
-          # ПРОСТЕЙШИЙ HTML который точно работает
-          cat > index.html << 'EOF'
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Мой цифровой сад</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 40px 20px;
-            line-height: 1.6;
-            color: #24292e;
-        }
-        h1 { color: #2ea44f; }
-        .garden-list { margin: 30px 0; }
-        .garden-item {
-            display: block;
-            padding: 15px;
-            margin: 10px 0;
-            background: #f6f8fa;
-            border-radius: 6px;
-            border: 1px solid #e1e4e8;
-            text-decoration: none;
-            color: inherit;
-        }
-        .garden-item:hover {
-            background: #e1e4e8;
-            border-color: #d1d5da;
-        }
-        .status {
-            padding: 10px;
-            background: #f1f8ff;
-            border-radius: 6px;
-            margin: 20px 0;
-        }
-    </style>
-</head>
-<body>
-    <h1>🌿 Добро пожаловать в мой цифровой сад!</h1>
-    
-    <div class="status">
-        <p>✅ GitHub Pages успешно развёрнут</p>
-        <p>📅 Дата: <span id="current-date">загрузка...</span></p>
-    </div>
-    
-    <h2>📁 Доступные сады:</h2>
-    <div class="garden-list" id="gardens-list">
-        <!-- Список садов будет сгенерирован JavaScript -->
-        <p>Загрузка списка садов...</p>
-    </div>
-    
-    <script>
-        // Функция для отображения даты
-        function updateDate() {
-            const now = new Date();
-            document.getElementById('current-date').textContent = 
-                now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
-        }
-        
-        // Функция для поиска и отображения папок
-        function loadGardens() {
-            const list = document.getElementById('gardens-list');
-            
-            try {
-                // Показываем тестовую ссылку (для проверки)
-                list.innerHTML = `
-                    <a href="test-garden/" class="garden-item">
-                        <strong>📁 Тестовый сад</strong><br>
-                        <small>Путь: /test-garden/</small>
-                    </a>
-                `;
-                
-                // Здесь в будущем можно добавить реальный поиск папок
-                // через AJAX или сгенерированный список
-                
-            } catch (error) {
-                list.innerHTML = `<p style="color: #cf222e;">Ошибка при загрузке списка: ${error.message}</p>`;
-            }
-        }
-        
-        // Запускаем при загрузке страницы
-        document.addEventListener('DOMContentLoaded', function() {
-            updateDate();
-            loadGardens();
-            
-            // Обновляем дату каждую минуту
-            setInterval(updateDate, 60000);
-        });
-    </script>
-    
-    <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e1e4e8; color: #6a737d;">
-        <p>🚀 Развёрнуто с помощью GitHub Actions</p>
-        <p><a href="https://github.com/Story987/Grin">Исходный код на GitHub</a></p>
-    </footer>
-</body>
-</html>
-EOF
-          
-          echo "✅ Главная страница создана: src/site/notes/index.html"
-        
-      # ШАГ 3: Создаём тестовый сад (если нет реальных)
-      - name: Create test garden (if empty)
+          # Добавляем дату последнего обновления во все HTML файлы
+          find dist -name "*.html" -type f | while read file; do
+            if grep -q "Last updated" "$file"; then
+              sed -i "s/Last updated:.*/Last updated: $(date '+%Y-%m-%d %H:%M:%S')/" "$file"
+            fi
+          done || true
+      
+      # 4. Создаем sitemap.xml автоматически (опционально)
+      - name: Generate sitemap
         run: |
-          cd src/site/notes/
+          BASE_URL="https://story987.github.io/Grin"
           
-          # Проверяем, есть ли хоть одна папка
-          if [ ! -d "test-garden" ] && [ $(find . -maxdepth 1 -type d ! -name "." | wc -l) -eq 0 ]; then
-            echo "📝 Создаю тестовый сад..."
-            mkdir -p "test-garden"
-            cat > "test-garden/index.html" << 'EOF2'
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Тестовый сад</title></head>
-<body>
-    <h1>🌱 Это тестовый сад</h1>
-    <p>Если вы это видите, значит GitHub Pages работает правильно!</p>
-    <p><a href="../">← Назад к списку садов</a></p>
-</body>
-</html>
-EOF2
-            echo "✅ Тестовый сад создан: test-garden/index.html"
-          else
-            echo "📁 Папки уже существуют, тестовый сад не создаю"
-          fi
-        
-      # ШАГ 4: Настраиваем и деплоим
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v5
-        
+          cat > dist/sitemap.xml << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url>
+              <loc>${BASE_URL}/</loc>
+              <lastmod>$(date -Iseconds)</lastmod>
+              <changefreq>daily</changefreq>
+              <priority>1.0</priority>
+            </url>
+          EOF
+          
+          # Добавляем все HTML файлы в sitemap
+          find dist -name "*.html" -type f | while read file; do
+            if [[ "$file" != "dist/sitemap.xml" ]]; then
+              rel_path="${file#dist/}"
+              echo "    <url>" >> dist/sitemap.xml
+              echo "      <loc>${BASE_URL}/${rel_path}</loc>" >> dist/sitemap.xml
+              echo "      <lastmod>$(date -Iseconds)</lastmod>" >> dist/sitemap.xml
+              echo "      <changefreq>weekly</changefreq>" >> dist/sitemap.xml
+              echo "      <priority>0.8</priority>" >> dist/sitemap.xml
+              echo "    </url>" >> dist/sitemap.xml
+            fi
+          done
+          
+          echo "  </urlset>" >> dist/sitemap.xml
+          echo "✅ Sitemap создан"
+      
+      # 5. Загружаем артефакт
       - name: Upload to GitHub Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'src/site/notes/'
-        
-      - name: Deploy to GitHub Pages
+          path: './dist'
+      
+      # 6. Деплоим
+      - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+      
+      # 7. Быстрое уведомление о статусе
+      - name: Deployment status
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Сайт успешно задеплоен!"
+            echo "🌐 URL: https://story987.github.io/Grin"
+            echo "🕐 Время: $(date '+%H:%M:%S')"
+          else
+            echo "❌ Деплой не удался"
+          fi
