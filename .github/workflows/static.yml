@@ -1,11 +1,13 @@
-name: Deploy Static Site
+name: Deploy from src/site/notes
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - 'src/site/notes/**'
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
 
 jobs:
   deploy:
@@ -13,8 +15,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      # Проверяем что в папке есть файлы
+      - name: Check source files
+        run: |
+          echo "📁 Содержимое src/site/notes:"
+          ls -la src/site/notes/
+          echo ""
+          echo "📊 Статистика:"
+          echo "Всего файлов: $(find src/site/notes -type f | wc -l)"
+          echo "HTML файлов: $(find src/site/notes -name "*.html" | wc -l)"
+      
+      # Ключевой момент: указываем ПРАВИЛЬНУЮ папку
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./src/site/notes
+          publish_dir: ./src/site/notes  # ← ВАЖНО! Берем отсюда
+          keep_files: false
