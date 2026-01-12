@@ -1,135 +1,336 @@
-name: Deploy to GitHub Pages
+name: Deploy Grin Digital Garden to GitHub Pages
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
     paths:
-      - 'src/site/notes/**'  # Триггерим только при изменениях в этой папке!
-      - '.github/workflows/deploy.yml'  # И при изменении самого workflow
-  workflow_dispatch:  # Можно запустить вручную
+      - 'src/site/notes/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
 
-# Оптимизация для быстрого деплоя
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Защита от конфликтов
 concurrency:
   group: "pages"
   cancel-in-progress: true
 
+env:
+  BASE_URL: "https://story987.github.io/Grin"
+  SITE_DIR: "src/site/notes"
+  OUTPUT_DIR: "_site"
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 5  # Безопасный таймаут для быстрых деплоев
+    timeout-minutes: 3
     
     steps:
-      # 1. Быстрая загрузка репозитория (только последний коммит)
+      # 1. Быстрая загрузка репозитория
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1  # Только последний коммит - быстрее!
+          fetch-depth: 1
       
-      # 2. Создаем папку dist и копируем файлы
-      - name: Copy files to dist
+      # 2. Проверяем существование исходной папки
+      - name: Validate source directory
         run: |
-          # Очищаем предыдущую сборку
-          rm -rf dist
-          
-          # Копируем только нужную папку
-          mkdir -p dist
-          cp -r src/site/notes/* dist/ 2>/dev/null ||:
-          
-          # Проверяем, что index.html существует
-          if [ ! -f "dist/index.html" ]; then
-            echo "⚠️ Внимание: index.html не найден в src/site/notes/"
-            echo "Создаю простой index.html..."
-            cat > dist/index.html << EOF
+          if [ ! -d "$SITE_DIR" ]; then
+            echo "❌ Ошибка: Папка $SITE_DIR не найдена!"
+            echo "Создаю базовую структуру..."
+            mkdir -p "$SITE_DIR"
+            cat > "$SITE_DIR/index.html" << EOF
             <!DOCTYPE html>
             <html>
             <head>
-              <title>Grin Site</title>
+              <title>Grin Digital Garden</title>
+              <base href="$BASE_URL/">
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+                       max-width: 800px; margin: 0 auto; padding: 40px 20px; line-height: 1.6; }
+                h1 { color: #24292e; border-bottom: 1px solid #e1e4e8; padding-bottom: 10px; }
+                .note { background: #f6f8fa; padding: 20px; border-radius: 6px; margin: 20px 0; }
+                code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-family: 'SFMono-Regular', Consolas, monospace; }
+              </style>
+            </head>
+            <body>
+              <h1>🌿 Grin Digital Garden</h1>
+              <p>Welcome to my digital garden. This is a space for thoughts, ideas, and notes to grow.</p>
+              
+              <div class="note">
+                <h2>🚀 Quick Start</h2>
+                <p>Add your notes as HTML files in <code>src/site/notes/</code></p>
+                <p>Every time you push changes, this site will automatically update.</p>
+              </div>
+              
+              <div class="note">
+                <h2>🔗 Useful Links</h2>
+                <ul>
+                  <li><a href="/sitemap.xml">Sitemap</a> - For search engines</li>
+                  <li><a href="/feed.xml">RSS Feed</a> - Subscribe to updates</li>
+                  <li><a href="https://github.com/Story987/Grin">GitHub Repository</a></li>
+                </ul>
+              </div>
+            </body>
+            </html>
+            EOF
+            echo "✅ Создана базовая структура в $SITE_DIR"
+          else
+            echo "✅ Папка $SITE_DIR найдена"
+            echo "📊 Содержит: $(find "$SITE_DIR" -type f | wc -l) файлов"
+          fi
+      
+      # 3. Подготавливаем папку для сборки (с очисткой)
+      - name: Prepare build directory
+        run: |
+          # Удаляем старую сборку если существует
+          rm -rf "$OUTPUT_DIR"
+          mkdir -p "$OUTPUT_DIR"
+          
+          # Копируем ВСЁ содержимое, включая подпапки
+          echo "📁 Копирую файлы из $SITE_DIR в $OUTPUT_DIR..."
+          if [ -n "$(ls -A "$SITE_DIR" 2>/dev/null)" ]; then
+            # Используем rsync для сохранения структуры и прав
+            rsync -av "$SITE_DIR/" "$OUTPUT_DIR/" --exclude=".*" || cp -r "$SITE_DIR"/* "$OUTPUT_DIR/" 2>/dev/null || true
+          fi
+          
+          # ФИКС: Убедимся, что все файлы имеют правильные права
+          chmod -R a+r "$OUTPUT_DIR"
+          
+          echo "✅ Файлы скопированы"
+      
+      # 4. Создаем обязательные файлы для GitHub Pages
+      - name: Create GitHub Pages files
+        run: |
+          cd "$OUTPUT_DIR"
+          
+          # 1. .nojekyll - критически важно!
+          touch .nojekyll
+          echo "✅ Создан .nojekyll"
+          
+          # 2. index.html если отсутствует
+          if [ ! -f "index.html" ]; then
+            echo "⚠️ index.html не найден, создаю..."
+            cat > index.html << EOF
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Grin Digital Garden</title>
+              <base href="$BASE_URL/">
               <meta charset="UTF-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
             </head>
             <body>
-              <h1>Сайт на GitHub Pages</h1>
-              <p>Добавьте index.html в src/site/notes/</p>
-              <p>Последнее обновление: $(date)</p>
+              <h1>Digital Garden Index</h1>
+              <p>No index.html found in $SITE_DIR.</p>
+              <p>Available files:</p>
+              <ul>
+                <!-- Files will be listed by JavaScript -->
+              </ul>
+              <script>
+                // Auto-list all HTML files
+                fetch('.')
+                  .then(r => r.text())
+                  .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const links = Array.from(doc.querySelectorAll('a[href$=".html"]'))
+                      .filter(a => !a.href.includes('?') && !a.textContent.includes('Parent Directory'));
+                    
+                    const ul = document.querySelector('ul');
+                    links.forEach(link => {
+                      const li = document.createElement('li');
+                      const a = document.createElement('a');
+                      a.href = link.getAttribute('href');
+                      a.textContent = link.textContent || link.getAttribute('href');
+                      li.appendChild(a);
+                      ul.appendChild(li);
+                    });
+                    
+                    if (links.length === 0) {
+                      ul.innerHTML = '<li>No HTML files found</li>';
+                    }
+                  });
+              </script>
             </body>
             </html>
             EOF
           fi
           
-          # Файл для отключения Jekyll
-          touch dist/.nojekyll
+          # 3. robots.txt для SEO
+          cat > robots.txt << EOF
+          User-agent: *
+          Allow: /
+          Disallow: /admin/
+          Disallow: /private/
           
-          # Быстрая проверка размера
-          echo "📊 Статистика сборки:"
-          find dist -type f | wc -l | xargs echo "Файлов:"
-          du -sh dist | cut -f1 | xargs echo "Размер:"
-      
-      # 3. Опционально: Автоматическое обновление даты в файлах
-      - name: Update timestamps (optional)
-        run: |
-          # Добавляем дату последнего обновления во все HTML файлы
-          find dist -name "*.html" -type f | while read file; do
-            if grep -q "Last updated" "$file"; then
-              sed -i "s/Last updated:.*/Last updated: $(date '+%Y-%m-%d %H:%M:%S')/" "$file"
-            fi
-          done || true
-      
-      # 4. Создаем sitemap.xml автоматически (опционально)
-      - name: Generate sitemap
-        run: |
-          BASE_URL="https://story987.github.io/Grin"
+          Sitemap: $BASE_URL/sitemap.xml
           
-          cat > dist/sitemap.xml << EOF
+          # Grin Digital Garden
+          # All public notes are indexable
+          EOF
+          
+          echo "✅ Создан robots.txt"
+      
+      # 5. Генерируем sitemap.xml с правильным baseURL
+      - name: Generate sitemap.xml
+        run: |
+          cd "$OUTPUT_DIR"
+          
+          cat > sitemap.xml << EOF
           <?xml version="1.0" encoding="UTF-8"?>
-          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+                  http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+          EOF
+          
+          # Функция для добавления URL в sitemap
+          add_to_sitemap() {
+            local file="$1"
+            local rel_path="${file#./}"
+            local lastmod=$(date -Iseconds -r "$file" 2>/dev/null || date -Iseconds)
+            
+            cat >> sitemap.xml << EOF
             <url>
-              <loc>${BASE_URL}/</loc>
+              <loc>$BASE_URL/$rel_path</loc>
+              <lastmod>$lastmod</lastmod>
+              <changefreq>weekly</changefreq>
+              <priority>0.7</priority>
+            </url>
+          EOF
+          }
+          
+          # Добавляем index.html первым
+          if [ -f "index.html" ]; then
+            cat >> sitemap.xml << EOF
+            <url>
+              <loc>$BASE_URL/</loc>
               <lastmod>$(date -Iseconds)</lastmod>
               <changefreq>daily</changefreq>
               <priority>1.0</priority>
             </url>
           EOF
+          fi
           
-          # Добавляем все HTML файлы в sitemap
-          find dist -name "*.html" -type f | while read file; do
-            if [[ "$file" != "dist/sitemap.xml" ]]; then
-              rel_path="${file#dist/}"
-              echo "    <url>" >> dist/sitemap.xml
-              echo "      <loc>${BASE_URL}/${rel_path}</loc>" >> dist/sitemap.xml
-              echo "      <lastmod>$(date -Iseconds)</lastmod>" >> dist/sitemap.xml
-              echo "      <changefreq>weekly</changefreq>" >> dist/sitemap.xml
-              echo "      <priority>0.8</priority>" >> dist/sitemap.xml
-              echo "    </url>" >> dist/sitemap.xml
+          # Добавляем все HTML файлы
+          find . -name "*.html" -type f ! -name "sitemap.xml" | while read file; do
+            if [ "$file" != "./index.html" ]; then
+              add_to_sitemap "$file"
             fi
           done
           
-          echo "  </urlset>" >> dist/sitemap.xml
-          echo "✅ Sitemap создан"
+          echo "</urlset>" >> sitemap.xml
+          echo "✅ Sitemap создан с $BASE_URL как базовый URL"
       
-      # 5. Загружаем артефакт
-      - name: Upload to GitHub Pages
+      # 6. Генерируем RSS feed.xml
+      - name: Generate RSS feed
+        run: |
+          cd "$OUTPUT_DIR"
+          
+          cat > feed.xml << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+          <channel>
+            <title>Grin Digital Garden</title>
+            <link>$BASE_URL</link>
+            <description>A growing collection of notes and ideas</description>
+            <language>en</language>
+            <lastBuildDate>$(date -R)</lastBuildDate>
+            <atom:link href="$BASE_URL/feed.xml" rel="self" type="application/rss+xml"/>
+          EOF
+          
+          # Добавляем последние 15 HTML файлов (кроме index.html) в RSS
+          find . -name "*.html" -type f ! -name "index.html" ! -name "feed.xml" ! -name "sitemap.xml" | \
+            head -15 | while read file; do
+            rel_path="${file#./}"
+            title=$(echo "${rel_path%.html}" | sed 's|/| : |g; s/_/ /g; s/-/ /g')
+            
+            cat >> feed.xml << EOF
+            <item>
+              <title>$title</title>
+              <link>$BASE_URL/$rel_path</link>
+              <guid>$BASE_URL/$rel_path</guid>
+              <pubDate>$(date -R)</pubDate>
+            </item>
+          EOF
+          done
+          
+          echo "  </channel>" >> feed.xml
+          echo "</rss>" >> feed.xml
+          echo "✅ RSS feed создан"
+      
+      # 7. Проверяем и оптимизируем сборку
+      - name: Verify and optimize build
+        run: |
+          cd "$OUTPUT_DIR"
+          
+          echo "🔍 Проверка сборки:"
+          echo "------------------"
+          echo "📁 Папка: $(pwd)"
+          echo "📊 Файлов: $(find . -type f | wc -l)"
+          echo "📈 Размер: $(du -sh . | cut -f1)"
+          echo ""
+          echo "✅ Обязательные файлы:"
+          [ -f ".nojekyll" ] && echo "  ✓ .nojekyll" || echo "  ✗ .nojekyll"
+          [ -f "index.html" ] && echo "  ✓ index.html" || echo "  ✗ index.html"
+          [ -f "sitemap.xml" ] && echo "  ✓ sitemap.xml" || echo "  ✗ sitemap.xml"
+          [ -f "feed.xml" ] && echo "  ✓ feed.xml" || echo "  ✗ feed.xml"
+          [ -f "robots.txt" ] && echo "  ✓ robots.txt" || echo "  ✗ robots.txt"
+          
+          # Показываем структуру
+          echo ""
+          echo "📂 Структура:"
+          find . -maxdepth 2 -type f -name "*.html" | head -10 | sed 's/^/  /'
+          [ $(find . -name "*.html" | wc -l) -gt 10 ] && echo "  ... и ещё $(($(find . -name "*.html" | wc -l)-10)) файлов"
+      
+      # 8. Загружаем артефакт
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './_site'
       
-      # 6. Деплоим
-      - name: Deploy
+      # 9. Деплоим
+      - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
       
-      # 7. Быстрое уведомление о статусе
-      - name: Deployment status
+      # 10. Итоговая информация
+      - name: Deployment summary
+        if: success()
         run: |
-          if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ Сайт успешно задеплоен!"
-            echo "🌐 URL: https://story987.github.io/Grin"
-            echo "🕐 Время: $(date '+%H:%M:%S')"
-          else
-            echo "❌ Деплой не удался"
-          fi
+          echo ""
+          echo "🎉 DEPLOYMENT SUCCESSFUL"
+          echo "========================"
+          echo "🌐 Site URL:    $BASE_URL"
+          echo "🗺️ Sitemap:     $BASE_URL/sitemap.xml"
+          echo "📰 RSS Feed:    $BASE_URL/feed.xml"
+          echo "🤖 Robots.txt:  $BASE_URL/robots.txt"
+          echo "🕐 Deployed at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+          echo ""
+          echo "📝 Source files in: src/site/notes/"
+          echo "📦 Build output in: _site/"
+          echo ""
+          echo "🚀 Next steps:"
+          echo "   1. Visit $BASE_URL"
+          echo "   2. Check if everything looks good"
+          echo "   3. Add more notes to src/site/notes/"
+          echo "   4. Commit and push to update automatically"
+          
+      # 11. Обработка ошибок
+      - name: Handle failure
+        if: failure()
+        run: |
+          echo "❌ DEPLOYMENT FAILED"
+          echo "===================="
+          echo "Error details above ↑"
+          echo ""
+          echo "🔧 Troubleshooting:"
+          echo "   1. Check if src/site/notes/ exists"
+          echo "   2. Verify there are readable files"
+          echo "   3. Check GitHub Pages settings"
+          echo "   4. Look for error messages above"
