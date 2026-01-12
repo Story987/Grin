@@ -1,4 +1,3 @@
-# Simple workflow for deploying static content to GitHub Pages
 name: Deploy Digital Garden Notes
 
 on:
@@ -24,6 +23,35 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
+      # 🔧 АВТОМАТИЧЕСКАЯ ГЕНЕРАЦИЯ ГЛАВНОЙ СТРАНИЦЫ
+      - name: Generate index.html with all gardens
+        run: |
+          cd src/site/notes/
+          
+          # Начинаем HTML
+          echo '<!DOCTYPE html><html><head><title>Сады</title><meta charset="utf-8"><style>' > index.html
+          echo 'body { font-family: sans-serif; margin: 40px; max-width: 800px; }' >> index.html
+          echo 'ul { list-style: none; padding: 0; } li { margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; }' >> index.html
+          echo 'a { color: #0969da; text-decoration: none; font-size: 18px; } a:hover { text-decoration: underline; }' >> index.html
+          echo '</style></head><body>' >> index.html
+          echo '<h1>🌿 Цифровые сады</h1><p>Всего садов: <strong>' >> index.html
+          
+          # Считаем папки
+          echo $(ls -d */ | wc -l) >> index.html
+          echo '</strong></p><ul>' >> index.html
+          
+          # Добавляем каждую папку как ссылку
+          for dir in */; do
+            dir_name="${dir%/}"
+            echo "  <li><a href=\"${dir// /%20}/\">📁 $dir_name</a></li>" >> index.html
+          done
+          
+          # Завершаем
+          echo '</ul><hr><p style="color: #6e7781;">Автоматически сгенерировано</p>' >> index.html
+          echo '</body></html>' >> index.html
+          
+          echo "✅ Создан index.html с $(ls -d */ | wc -l) садами"
         
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -31,7 +59,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # 🔧 ВАЖНО: Загружаем весь каталог notes
           path: 'src/site/notes/'
         
       - name: Deploy to GitHub Pages
