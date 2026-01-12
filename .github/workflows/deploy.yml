@@ -21,42 +21,320 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     
     steps:
+      # 1. Загружаем код
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Полная история для правильной работы
       
-      - name: Copy notes to root
+      # 2. Показываем структуру репозитория
+      - name: Debug - Show repository structure
         run: |
-          echo "📁 Содержимое src/site/notes:"
-          ls -la src/site/notes/ || echo "Папка не найдена"
+          echo "🔍 СТРУКТУРА РЕПОЗИТОРИЯ:"
+          echo "==========================="
+          echo "📁 Корень репозитория:"
+          ls -la
           echo ""
-          
-          echo "🔄 Копирую файлы из src/site/notes в корень..."
-          
-          # Копируем файлы
+          echo "📁 Папка src/site/notes:"
           if [ -d "src/site/notes" ]; then
-            cp -r src/site/notes/* ./ 2>/dev/null || true
-            echo "✅ Файлы скопированы"
+            find src/site/notes -type f 2>/dev/null | head -30 || echo "Нет файлов"
+            echo ""
+            echo "📊 Статистика:"
+            echo "Всего файлов: $(find src/site/notes -type f 2>/dev/null | wc -l)"
+            echo "Папок: $(find src/site/notes -type d 2>/dev/null | wc -l)"
           else
-            echo "❌ Ошибка: Папка src/site/notes не найдена!"
+            echo "❌ Папка src/site/notes не найдена!"
+            echo "Создаю структуру..."
+            mkdir -p src/site/notes
+            echo "# Мои заметки" > src/site/notes/README.md
+          fi
+      
+      # 3. Копируем ВСЕ файлы с правильной структурой
+      - name: Copy ALL files to root
+        run: |
+          echo "🔄 КОПИРОВАНИЕ ФАЙЛОВ:"
+          echo "====================="
+          
+          # Проверяем исходную папку
+          if [ ! -d "src/site/notes" ]; then
+            echo "❌ Критическая ошибка: Папка src/site/notes не существует!"
             exit 1
           fi
           
-          # Важно для GitHub Pages
+          # Проверяем, есть ли файлы для копирования
+          FILE_COUNT=$(find src/site/notes -type f 2>/dev/null | wc -l)
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "⚠️ Внимание: В src/site/notes нет файлов для копирования"
+          else
+            echo "📦 Найдено файлов для копирования: $FILE_COUNT"
+          fi
+          
+          echo ""
+          echo "🧹 Очищаю корневую папку (кроме .git и .github)..."
+          # Удаляем всё, кроме служебных папок
+          find . -maxdepth 1 ! -name '.' ! -name '.git' ! -name '.github' ! -name 'src' -exec rm -rf {} + 2>/dev/null || true
+          
+          echo "📤 Копирую ВСЁ содержимое папки notes..."
+          # Используем точку в конце для копирования ВСЕГО содержимого
+          if [ "$(ls -A src/site/notes 2>/dev/null)" ]; then
+            # Создаём структуру если нужно
+            mkdir -p _temp_copy
+            cp -r src/site/notes/. _temp_copy/ 2>/dev/null || true
+            # Перемещаем в корень
+            mv _temp_copy/* ./ 2>/dev/null || true
+            rm -rf _temp_copy
+            echo "✅ Файлы успешно скопированы"
+          else
+            echo "⚠️ Папка src/site/notes пуста"
+          fi
+          
+          # Создаём .nojekyll (обязательно!)
           touch .nojekyll
-          echo "✅ Создан .nojekyll"
+          echo "✅ Создан файл .nojekyll"
+          
+          echo ""
+          echo "📁 Итоговая структура в корне:"
+          ls -la | head -20
+          echo "..."
       
+      # 4. Создаём индекс если его нет
+      - name: Create index if missing
+        run: |
+          echo "🔍 ПРОВЕРКА INDEX ФАЙЛА:"
+          echo "========================"
+          
+          # Проверяем существующие index файлы
+          if [ -f "index.html" ] || [ -f "index.md" ] || [ -f "index.txt" ]; then
+            echo "✅ Index файл уже существует"
+            ls -la index.* 2>/dev/null || true
+          else
+            echo "⚠️ Index файл не найден, создаю автоматический..."
+            
+            # Создаём HTML с навигацией по всем файлам
+            cat > index.html << 'EOF'
+            <!DOCTYPE html>
+            <html lang="ru">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Digital Garden - Все файлы</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                        max-width: 900px;
+                        margin: 40px auto;
+                        padding: 30px;
+                        line-height: 1.6;
+                        background: #f8f9fa;
+                        color: #24292e;
+                    }
+                    .container {
+                        background: white;
+                        border-radius: 10px;
+                        padding: 40px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                    }
+                    h1 {
+                        color: #2c3e50;
+                        border-bottom: 2px solid #3498db;
+                        padding-bottom: 15px;
+                        margin-bottom: 30px;
+                    }
+                    ul {
+                        list-style: none;
+                        padding: 0;
+                        column-count: 2;
+                        column-gap: 40px;
+                    }
+                    @media (max-width: 768px) {
+                        ul { column-count: 1; }
+                    }
+                    li {
+                        margin: 12px 0;
+                        break-inside: avoid;
+                    }
+                    a {
+                        color: #0366d6;
+                        text-decoration: none;
+                        padding: 8px 12px;
+                        display: block;
+                        border-radius: 6px;
+                        transition: all 0.2s;
+                    }
+                    a:hover {
+                        background: #f1f8ff;
+                        color: #005cc5;
+                        transform: translateX(5px);
+                    }
+                    .folder {
+                        color: #6a737d;
+                        font-weight: bold;
+                    }
+                    .file {
+                        color: #0366d6;
+                        padding-left: 20px;
+                    }
+                    .note {
+                        background: #fff8e1;
+                        border-left: 4px solid #ffd600;
+                        padding: 15px;
+                        margin: 20px 0;
+                        border-radius: 4px;
+                    }
+                    footer {
+                        margin-top: 40px;
+                        color: #6a737d;
+                        font-size: 0.9em;
+                        text-align: center;
+                        padding-top: 20px;
+                        border-top: 1px solid #e1e4e8;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🌿 Digital Garden</h1>
+                    
+                    <div class="note">
+                        <p>Это автоматически сгенерированная страница. Добавьте файл <code>index.html</code> или <code>index.md</code> в папку <code>src/site/notes/</code> для кастомной главной страницы.</p>
+                    </div>
+                    
+                    <h2>📂 Все опубликованные файлы:</h2>
+                    <ul id="file-list">
+                        <li>Загрузка списка файлов...</li>
+                    </ul>
+                    
+                    <footer>
+                        <p>Обновлено: <span id="current-date"></span> | Автоматический деплой через GitHub Actions</p>
+                    </footer>
+                </div>
+                
+                <script>
+                    // Показываем текущую дату
+                    document.getElementById('current-date').textContent = new Date().toLocaleDateString('ru-RU');
+                    
+                    // Загружаем и показываем все файлы
+                    async function loadFiles() {
+                        try {
+                            const response = await fetch('.');
+                            const html = await response.text();
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(html, 'text/html');
+                            const links = Array.from(doc.querySelectorAll('a'));
+                            
+                            const fileList = document.getElementById('file-list');
+                            fileList.innerHTML = '';
+                            
+                            const files = links
+                                .filter(link => {
+                                    const href = link.getAttribute('href');
+                                    return href && 
+                                           !href.includes('?') && 
+                                           !href.startsWith('../') &&
+                                           href !== '/' &&
+                                           link.textContent.trim();
+                                })
+                                .map(link => ({
+                                    name: link.textContent.trim(),
+                                    url: link.getAttribute('href'),
+                                    isDir: link.getAttribute('href').endsWith('/')
+                                }))
+                                .sort((a, b) => {
+                                    if (a.isDir && !b.isDir) return -1;
+                                    if (!a.isDir && b.isDir) return 1;
+                                    return a.name.localeCompare(b.name);
+                                });
+                            
+                            if (files.length === 0) {
+                                fileList.innerHTML = '<li>Файлы не найдены. Добавьте файлы в папку src/site/notes/</li>';
+                                return;
+                            }
+                            
+                            files.forEach(file => {
+                                const li = document.createElement('li');
+                                const a = document.createElement('a');
+                                a.href = file.url;
+                                a.textContent = file.isDir ? `📁 ${file.name}` : `📄 ${file.name}`;
+                                a.className = file.isDir ? 'folder' : 'file';
+                                li.appendChild(a);
+                                fileList.appendChild(li);
+                            });
+                        } catch (error) {
+                            document.getElementById('file-list').innerHTML = 
+                                '<li>Ошибка загрузки списка файлов</li>';
+                            console.error('Ошибка:', error);
+                        }
+                    }
+                    
+                    // Загружаем файлы при загрузке страницы
+                    window.addEventListener('DOMContentLoaded', loadFiles);
+                </script>
+            </body>
+            </html>
+            EOF
+            
+            echo "✅ Автоматический index.html создан"
+          fi
+      
+      # 5. Проверяем финальную структуру
+      - name: Verify final structure
+        run: |
+          echo "📊 ФИНАЛЬНАЯ ПРОВЕРКА:"
+          echo "====================="
+          echo "🌐 Корневая папка сайта:"
+          find . -maxdepth 2 -type f | head -30
+          echo ""
+          echo "📈 Итоговая статистика:"
+          echo "Всего файлов в корне: $(find . -maxdepth 1 -type f ! -name '.git*' | wc -l)"
+          echo "Всего папок в корне: $(find . -maxdepth 1 -type d ! -name '.git' | wc -l)"
+      
+      # 6. Загружаем артефакт для GitHub Pages
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './'
       
+      # 7. Деплоим
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
       
-      - name: Show result
+      # 8. Информация о результате
+      - name: Show deployment result
         if: success()
         run: |
-          echo "🎉 Сайт задеплоен!"
-          echo "🌐 URL: https://story987.github.io/Grin/"
-          echo "🕐 Время: $(date)"
+          echo ""
+          echo "🎉 УСПЕШНЫЙ ДЕПЛОЙ!"
+          echo "=================="
+          echo "✅ Ваш Digital Garden опубликован"
+          echo "🌐 Адрес сайта: https://story987.github.io/Grin/"
+          echo "🕐 Время публикации: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo ""
+          echo "📋 Следующие шаги:"
+          echo "   1. Откройте https://story987.github.io/Grin/ в браузере"
+          echo "   2. Убедитесь, что все файлы отображаются"
+          echo "   3. Добавляйте новые заметки в src/site/notes/"
+          echo "   4. Сайт будет обновляться автоматически при каждом push"
+          echo ""
+          echo "🔧 Если файлов нет на сайте:"
+          echo "   • Проверьте логи шага 'Debug - Show repository structure'"
+          echo "   • Убедитесь, что в src/site/notes/ есть файлы"
+          echo "   • Проверьте настройки GitHub Pages (Source: GitHub Actions)"
+      
+      # 9. Обработка ошибок
+      - name: Handle failure
+        if: failure()
+        run: |
+          echo ""
+          echo "❌ ДЕПЛОЙ НЕ УДАЛСЯ"
+          echo "================="
+          echo "Посмотрите логи выше для диагностики ошибки."
+          echo ""
+          echo "Возможные причины:"
+          echo "   • Папка src/site/notes/ не существует"
+          echo "   • Нет прав на запись в корневую папку"
+          echo "   • Ошибка в конфигурации GitHub Pages"
+          echo ""
+          echo "Проверьте:"
+          echo "   1. Существует ли папка src/site/notes/ в репозитории"
+          echo "   2. Настройки GitHub Pages (Source: GitHub Actions)"
