@@ -1,73 +1,195 @@
-# ШАГ 1: Автоматически создаём главную страницу
-      - name: Generate index.html with all gardens
+name: Deploy Digital Garden
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # ШАГ 1: Проверяем и готовим папку notes
+      - name: Prepare notes directory
         run: |
-          echo "🌿 Начинаю генерацию главной страницы для цифровых садов..."
+          echo "🔍 Проверяю структуру проекта..."
           
-          # Переходим в папку с садами
-          cd src/site/notes/
-          
-          # Проверяем, есть ли папки
-          if [ ! -d "$(ls -d */ 2>/dev/null | head -1)" ]; then
-            echo "❌ Ошибка: В папке notes нет подпапок!"
-            exit 1
+          # 1. Проверяем, существует ли папка src/site/notes/
+          if [ ! -d "src/site/notes" ]; then
+            echo "⚠️ Папка src/site/notes не существует. Создаю..."
+            mkdir -p src/site/notes
           fi
           
-          # Создаём index.html - ВАЖНО: начинаем с простейшего HTML
+          # 2. Переходим в папку
+          cd src/site/notes/
+          echo "📁 Текущая папка: $(pwd)"
+          
+          # 3. Показываем содержимое
+          echo "📋 Содержимое папки:"
+          ls -la || echo "Папка пуста"
+          
+          # 4. Считаем папки (сады)
+          GARDEN_COUNT=$(find . -maxdepth 1 -type d ! -name "." | wc -l)
+          echo "🌿 Найдено папок-садов: $GARDEN_COUNT"
+        
+      # ШАГ 2: Создаём ГЛАВНУЮ страницу (index.html)
+      - name: Create main index.html
+        run: |
+          cd src/site/notes/
+          
+          # ПРОСТЕЙШИЙ HTML который точно работает
           cat > index.html << 'EOF'
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Мои цифровые сады</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой цифровой сад</title>
     <style>
-        body { font-family: sans-serif; margin: 40px; }
-        .garden { margin: 20px 0; padding: 15px; background: #f5f5f5; }
-        a { color: #0366d6; text-decoration: none; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            line-height: 1.6;
+            color: #24292e;
+        }
+        h1 { color: #2ea44f; }
+        .garden-list { margin: 30px 0; }
+        .garden-item {
+            display: block;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f6f8fa;
+            border-radius: 6px;
+            border: 1px solid #e1e4e8;
+            text-decoration: none;
+            color: inherit;
+        }
+        .garden-item:hover {
+            background: #e1e4e8;
+            border-color: #d1d5da;
+        }
+        .status {
+            padding: 10px;
+            background: #f1f8ff;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
-    <h1>📚 Мои цифровые сады</h1>
-    <div id="gardens-container">
-        <!-- Сады будут добавлены здесь -->
+    <h1>🌿 Добро пожаловать в мой цифровой сад!</h1>
+    
+    <div class="status">
+        <p>✅ GitHub Pages успешно развёрнут</p>
+        <p>📅 Дата: <span id="current-date">загрузка...</span></p>
     </div>
+    
+    <h2>📁 Доступные сады:</h2>
+    <div class="garden-list" id="gardens-list">
+        <!-- Список садов будет сгенерирован JavaScript -->
+        <p>Загрузка списка садов...</p>
+    </div>
+    
     <script>
-        // Простой JavaScript для добавления садов
-        const gardens = [
-EOF
-          
-          # Добавляем каждый сад в JavaScript массив
-          for dir in */; do
-            dir_name="${dir%/}"
-            dir_url="${dir// /%20}"
-            echo "            {name: \"$dir_name\", url: \"$dir_url/\"}," >> index.html
-          done
-          
-          # Завершаем HTML и JavaScript
-          cat >> index.html << 'EOF'
-        ];
+        // Функция для отображения даты
+        function updateDate() {
+            const now = new Date();
+            document.getElementById('current-date').textContent = 
+                now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
+        }
         
-        const container = document.getElementById('gardens-container');
-        gardens.forEach(garden => {
-            const div = document.createElement('div');
-            div.className = 'garden';
-            div.innerHTML = `
-                <h3><a href="${garden.url}">📁 ${garden.name}</a></h3>
-                <small>Путь: /${garden.url}</small>
-            `;
-            container.appendChild(div);
+        // Функция для поиска и отображения папок
+        function loadGardens() {
+            const list = document.getElementById('gardens-list');
+            
+            try {
+                // Показываем тестовую ссылку (для проверки)
+                list.innerHTML = `
+                    <a href="test-garden/" class="garden-item">
+                        <strong>📁 Тестовый сад</strong><br>
+                        <small>Путь: /test-garden/</small>
+                    </a>
+                `;
+                
+                // Здесь в будущем можно добавить реальный поиск папок
+                // через AJAX или сгенерированный список
+                
+            } catch (error) {
+                list.innerHTML = `<p style="color: #cf222e;">Ошибка при загрузке списка: ${error.message}</p>`;
+            }
+        }
+        
+        // Запускаем при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDate();
+            loadGardens();
+            
+            // Обновляем дату каждую минуту
+            setInterval(updateDate, 60000);
         });
-        
-        // Добавляем счётчик
-        const counter = document.createElement('p');
-        counter.innerHTML = `<strong>Всего садов: ${gardens.length}</strong>`;
-        container.parentNode.insertBefore(counter, container);
-        
-        // Дата обновления
-        const date = new Date().toLocaleDateString('ru-RU');
-        document.body.innerHTML += `<footer><small>Обновлено: ${date}</small></footer>`;
     </script>
+    
+    <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e1e4e8; color: #6a737d;">
+        <p>🚀 Развёрнуто с помощью GitHub Actions</p>
+        <p><a href="https://github.com/Story987/Grin">Исходный код на GitHub</a></p>
+    </footer>
 </body>
 </html>
 EOF
           
-          echo "✅ Создан index.html с $(ls -d */ | wc -l) садами"
+          echo "✅ Главная страница создана: src/site/notes/index.html"
+        
+      # ШАГ 3: Создаём тестовый сад (если нет реальных)
+      - name: Create test garden (if empty)
+        run: |
+          cd src/site/notes/
+          
+          # Проверяем, есть ли хоть одна папка
+          if [ ! -d "test-garden" ] && [ $(find . -maxdepth 1 -type d ! -name "." | wc -l) -eq 0 ]; then
+            echo "📝 Создаю тестовый сад..."
+            mkdir -p "test-garden"
+            cat > "test-garden/index.html" << 'EOF2'
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Тестовый сад</title></head>
+<body>
+    <h1>🌱 Это тестовый сад</h1>
+    <p>Если вы это видите, значит GitHub Pages работает правильно!</p>
+    <p><a href="../">← Назад к списку садов</a></p>
+</body>
+</html>
+EOF2
+            echo "✅ Тестовый сад создан: test-garden/index.html"
+          else
+            echo "📁 Папки уже существуют, тестовый сад не создаю"
+          fi
+        
+      # ШАГ 4: Настраиваем и деплоим
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+        
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'src/site/notes/'
+        
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
