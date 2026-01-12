@@ -1,23 +1,73 @@
-# ПРОСТОЙ ШАГ: Создаём базовую главную страницу
-- name: Create simple index.html
-  run: |
-    cd src/site/notes/
-    
-    # Начинаем HTML
-    echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Сады</title>' > index.html
-    echo '<style>body{font-family:sans-serif; margin:40px;}</style></head>' >> index.html
-    echo '<body><h1>🌿 Цифровые сады</h1><ul>' >> index.html
-    
-    # Добавляем ссылки на все папки
-    for dir in */; do
-      dir_name="${dir%/}"
-      dir_url="${dir// /%20}"
-      echo "<li><a href=\"$dir_url/\">📁 $dir_name</a></li>" >> index.html
-    done
-    
-    # Завершаем
-    garden_count=$(ls -d */ | wc -l)
-    echo "</ul><p>Всего садов: <strong>$garden_count</strong></p>" >> index.html
-    echo "<p><small>$(date)</small></p></body></html>" >> index.html
-    
-    echo "✅ Создан простой index.html с $garden_count садами"
+# ШАГ 1: Автоматически создаём главную страницу
+      - name: Generate index.html with all gardens
+        run: |
+          echo "🌿 Начинаю генерацию главной страницы для цифровых садов..."
+          
+          # Переходим в папку с садами
+          cd src/site/notes/
+          
+          # Проверяем, есть ли папки
+          if [ ! -d "$(ls -d */ 2>/dev/null | head -1)" ]; then
+            echo "❌ Ошибка: В папке notes нет подпапок!"
+            exit 1
+          fi
+          
+          # Создаём index.html - ВАЖНО: начинаем с простейшего HTML
+          cat > index.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Мои цифровые сады</title>
+    <style>
+        body { font-family: sans-serif; margin: 40px; }
+        .garden { margin: 20px 0; padding: 15px; background: #f5f5f5; }
+        a { color: #0366d6; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <h1>📚 Мои цифровые сады</h1>
+    <div id="gardens-container">
+        <!-- Сады будут добавлены здесь -->
+    </div>
+    <script>
+        // Простой JavaScript для добавления садов
+        const gardens = [
+EOF
+          
+          # Добавляем каждый сад в JavaScript массив
+          for dir in */; do
+            dir_name="${dir%/}"
+            dir_url="${dir// /%20}"
+            echo "            {name: \"$dir_name\", url: \"$dir_url/\"}," >> index.html
+          done
+          
+          # Завершаем HTML и JavaScript
+          cat >> index.html << 'EOF'
+        ];
+        
+        const container = document.getElementById('gardens-container');
+        gardens.forEach(garden => {
+            const div = document.createElement('div');
+            div.className = 'garden';
+            div.innerHTML = `
+                <h3><a href="${garden.url}">📁 ${garden.name}</a></h3>
+                <small>Путь: /${garden.url}</small>
+            `;
+            container.appendChild(div);
+        });
+        
+        // Добавляем счётчик
+        const counter = document.createElement('p');
+        counter.innerHTML = `<strong>Всего садов: ${gardens.length}</strong>`;
+        container.parentNode.insertBefore(counter, container);
+        
+        // Дата обновления
+        const date = new Date().toLocaleDateString('ru-RU');
+        document.body.innerHTML += `<footer><small>Обновлено: ${date}</small></footer>`;
+    </script>
+</body>
+</html>
+EOF
+          
+          echo "✅ Создан index.html с $(ls -d */ | wc -l) садами"
