@@ -1,0 +1,9 @@
+{
+	"nodes":[
+		{"id":"12c40b9962527583","x":112,"y":201,"width":250,"height":60,"type":"text","text":"# Центр"},
+		{"id":"d652cb310b336ba7","x":110,"y":-35,"width":250,"height":60,"type":"text","text":" # Вверх"}
+	],
+	"edges":[
+		{"id":"8065cfdc13f5ddb3","fromNode":"12c40b9962527583","fromSide":"top","toNode":"d652cb310b336ba7","toSide":"bottom"}
+	]
+}
