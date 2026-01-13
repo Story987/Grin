@@ -1,8 +1,11 @@
-name: Deploy Digital Garden with REAL Clickable Files
+name: Digital Garden with Obsidian Features
 
 on:
   push:
     branches: ["main"]
+    paths:
+      - 'src/site/notes/**'  # Только при изменении заметок
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -12,379 +15,296 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true  # Новый деплой отменяет старый
 
 jobs:
-  deploy:
+  build-and-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-      
-      # ШАГ 1: Анализируем реальную структуру
-      - name: Scan real file structure
+        with:
+          fetch-depth: 0
+
+      # 1. Скачиваем готовые шаблоны из obsidian-digital-garden
+      - name: Download templates from obsidian-garden
         run: |
-          echo "🔍 Сканирую реальные файлы..."
-          cd src/site/notes/
+          echo "📥 Загружаю шаблоны..."
+          mkdir -p templates
           
-          # Создаём JSON с реальной структурой
-          echo '{' > structure.json
-          echo '  "folders": [' >> structure.json
+          # Основной CSS (можно использовать или адаптировать)
+          curl -s -o templates/style.css \
+            https://raw.githubusercontent.com/oleeskild/obsidian-digital-garden/main/src/site/assets/css/style.css
           
-          # Папки
-          FIRST_DIR=true
-          find . -maxdepth 1 -type d ! -name "." | sed 's|^\./||' | while read dir; do
-            if [ "$FIRST_DIR" = false ]; then
-              echo "    ," >> structure.json
+          # Иконки и шрифты
+          mkdir -p templates/assets
+          curl -s -o templates/assets/favicon.ico \
+            https://github.com/oleeskild/obsidian-digital-garden/raw/main/src/site/assets/favicon.ico
+          
+          echo "✅ Шаблоны загружены"
+
+      # 2. Анализируем структуру как в obsidian-garden
+      - name: Analyze notes structure
+        id: scan
+        run: |
+          cd src/site/notes
+          echo "🔍 Анализирую структуру заметок..."
+          
+          # Создаём структуру как в obsidian
+          cat > notes-structure.json << 'EOF'
+          {
+            "generated": "$(date)",
+            "notes": [
+          EOF
+          
+          # Находим все markdown/html файлы
+          first=true
+          find . -name "*.md" -o -name "*.html" -o -name "*.htm" | while read file; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              echo "," >> notes-structure.json
             fi
-            FILE_COUNT=$(find "$dir" -type f | wc -l)
-            TOTAL_SIZE=$(find "$dir" -type f -exec stat -c%s {} \; 2>/dev/null | awk '{sum+=$1} END {print sum}')
-            echo "    {" >> structure.json
-            echo "      \"name\": \"$dir\"," >> structure.json
-            echo "      \"fileCount\": $FILE_COUNT," >> structure.json
-            echo "      \"totalSize\": ${TOTAL_SIZE:-0}" >> structure.json
-            echo "    }" >> structure.json
-            FIRST_DIR=false
+            
+            filename=$(basename "$file")
+            path=$(dirname "$file" | sed 's|^\./||')
+            size=$(stat -c%s "$file" 2>/dev/null || wc -c < "$file")
+            
+            # Извлекаем заголовок (первая строка для .md)
+            if [[ "$file" == *.md ]]; then
+              title=$(head -1 "$file" | sed 's/^# //')
+            else
+              title=$(echo "$filename" | sed 's/\.[^.]*$//')
+            fi
+            
+            echo "  {" >> notes-structure.json
+            echo "    \"file\": \"$filename\"," >> notes-structure.json
+            echo "    \"path\": \"$path\"," >> notes-structure.json
+            echo "    \"title\": \"${title:-$filename}\"," >> notes-structure.json
+            echo "    \"size\": $size," >> notes-structure.json
+            echo "    \"type\": \"$(echo "$filename" | grep -o '\.[^.]*$')\"" >> notes-structure.json
+            echo "  }" >> notes-structure.json
           done
           
-          echo '  ],' >> structure.json
-          echo '  "files": [' >> structure.json
+          echo "]" >> notes-structure.json
+          echo "}" >> notes-structure.json
           
-          # Файлы в корне (кроме index.html)
-          FIRST_FILE=true
-          find . -maxdepth 1 -type f ! -name "index.html" ! -name "structure.json" | sed 's|^\./||' | while read file; do
-            if [ "$FIRST_FILE" = false ]; then
-              echo "    ," >> structure.json
-            fi
-            SIZE=$(stat -c%s "$file" 2>/dev/null || wc -c < "$file")
-            EXT="${file##*.}"
-            echo "    {" >> structure.json
-            echo "      \"name\": \"$file\"," >> structure.json
-            echo "      \"size\": $SIZE," >> structure.json
-            echo "      \"ext\": \"${EXT,,}\"" >> structure.json
-            echo "    }" >> structure.json
-            FIRST_FILE=false
-          done
-          
-          echo '  ]' >> structure.json
-          echo '}' >> structure.json
-          
-          echo "📊 Статистика сохранена в structure.json"
-        
-      # ШАГ 2: Создаём index.html с РЕАЛЬНЫМИ КЛИКАБЕЛЬНЫМИ файлами
-      - name: Create index.html with clickable files
+          echo "📊 Найдено заметок: $(grep -c '"file"' notes-structure.json)"
+
+      # 3. Создаём главную страницу в стиле obsidian-garden
+      - name: Create obsidian-style index
         run: |
-          cd src/site/notes/
-          echo "🌿 Создаю index.html с кликабельными файлами..."
+          cd src/site/notes
+          echo "🎨 Создаю страницу в стиле Obsidian Garden..."
           
-          # === НАЧИНАЕМ HTML ===
-          echo '<!DOCTYPE html>' > index.html
-          echo '<html lang="ru">' >> index.html
-          echo '<head>' >> index.html
-          echo '    <meta charset="UTF-8">' >> index.html
-          echo '    <meta name="viewport" content="width=device-width, initial-scale=1.0">' >> index.html
-          echo '    <title>🌿 Цифровой сад</title>' >> index.html
-          echo '    <style>' >> index.html
-          echo '        :root {' >> index.html
-          echo '            --primary: #2ea44f;' >> index.html
-          echo '            --bg: #f6f8fa;' >> index.html
-          echo '            --card: #ffffff;' >> index.html
-          echo '            --text: #24292f;' >> index.html
-          echo '            --border: #d0d7de;' >> index.html
-          echo '        }' >> index.html
-          echo '        * { margin: 0; padding: 0; box-sizing: border-box; }' >> index.html
-          echo '        body {' >> index.html
-          echo '            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;' >> index.html
-          echo '            background: var(--bg);' >> index.html
-          echo '            color: var(--text);' >> index.html
-          echo '            line-height: 1.6;' >> index.html
-          echo '            padding: 20px;' >> index.html
-          echo '            max-width: 1200px;' >> index.html
-          echo '            margin: 0 auto;' >> index.html
-          echo '        }' >> index.html
-          echo '        header { ' >> index.html
-          echo '            text-align: center; ' >> index.html
-          echo '            margin: 40px 0 60px 0;' >> index.html
-          echo '            padding-bottom: 20px;' >> index.html
-          echo '            border-bottom: 2px solid var(--border);' >> index.html
-          echo '        }' >> index.html
-          echo '        h1 { ' >> index.html
-          echo '            font-size: 2.8rem; ' >> index.html
-          echo '            margin-bottom: 10px;' >> index.html
-          echo '            color: var(--primary);' >> index.html
-          echo '        }' >> index.html
-          echo '        .stats-grid {' >> index.html
-          echo '            display: grid;' >> index.html
-          echo '            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));' >> index.html
-          echo '            gap: 15px;' >> index.html
-          echo '            margin: 30px 0;' >> index.html
-          echo '        }' >> index.html
-          echo '        .stat-card {' >> index.html
-          echo '            background: var(--card);' >> index.html
-          echo '            border: 1px solid var(--border);' >> index.html
-          echo '            border-radius: 10px;' >> index.html
-          echo '            padding: 20px;' >> index.html
-          echo '            text-align: center;' >> index.html
-          echo '        }' >> index.html
-          echo '        .stat-number {' >> index.html
-          echo '            font-size: 2.5rem;' >> index.html
-          echo '            font-weight: bold;' >> index.html
-          echo '            color: var(--primary);' >> index.html
-          echo '        }' >> index.html
-          echo '        .file-grid {' >> index.html
-          echo '            display: grid;' >> index.html
-          echo '            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));' >> index.html
-          echo '            gap: 15px;' >> index.html
-          echo '            margin-top: 20px;' >> index.html
-          echo '        }' >> index.html
-          echo '        .file-card {' >> index.html
-          echo '            background: var(--card);' >> index.html
-          echo '            border: 1px solid var(--border);' >> index.html
-          echo '            border-radius: 10px;' >> index.html
-          echo '            padding: 15px;' >> index.html
-          echo '            display: flex;' >> index.html
-          echo '            align-items: center;' >> index.html
-          echo '            gap: 15px;' >> index.html
-          echo '            text-decoration: none;' >> index.html
-          echo '            color: inherit;' >> index.html
-          echo '            transition: all 0.2s ease;' >> index.html
-          echo '        }' >> index.html
-          echo '        .file-card:hover {' >> index.html
-          echo '            transform: translateY(-3px);' >> index.html
-          echo '            box-shadow: 0 5px 15px rgba(0,0,0,0.1);' >> index.html
-          echo '            border-color: var(--primary);' >> index.html
-          echo '        }' >> index.html
-          echo '        .file-icon {' >> index.html
-          echo '            font-size: 2rem;' >> index.html
-          echo '            width: 50px;' >> index.html
-          echo '            text-align: center;' >> index.html
-          echo '        }' >> index.html
-          echo '        .file-info {' >> index.html
-          echo '            flex: 1;' >> index.html
-          echo '        }' >> index.html
-          echo '        .file-name {' >> index.html
-          echo '            font-weight: 600;' >> index.html
-          echo '            margin-bottom: 5px;' >> index.html
-          echo '            color: var(--primary);' >> index.html
-          echo '            word-break: break-all;' >> index.html
-          echo '        }' >> index.html
-          echo '        .file-meta {' >> index.html
-          echo '            font-size: 0.85rem;' >> index.html
-          echo '            color: #6e7781;' >> index.html
-          echo '        }' >> index.html
-          echo '        .folder-section {' >> index.html
-          echo '            margin: 40px 0;' >> index.html
-          echo '        }' >> index.html
-          echo '        .folder-name {' >> index.html
-          echo '            font-size: 1.5rem;' >> index.html
-          echo '            margin-bottom: 20px;' >> index.html
-          echo '            padding-bottom: 10px;' >> index.html
-          echo '            border-bottom: 2px solid var(--border);' >> index.html
-          echo '            color: var(--primary);' >> index.html
-          echo '        }' >> index.html
-          echo '        footer {' >> index.html
-          echo '            margin-top: 60px;' >> index.html
-          echo '            text-align: center;' >> index.html
-          echo '            color: #6e7781;' >> index.html
-          echo '            padding-top: 20px;' >> index.html
-          echo '            border-top: 1px solid var(--border);' >> index.html
-          echo '        }' >> index.html
-          echo '        #search {' >> index.html
-          echo '            width: 100%;' >> index.html
-          echo '            padding: 12px;' >> index.html
-          echo '            border: 2px solid var(--border);' >> index.html
-          echo '            border-radius: 8px;' >> index.html
-          echo '            margin: 20px 0;' >> index.html
-          echo '            font-size: 1rem;' >> index.html
-          echo '        }' >> index.html
-          echo '        @media (max-width: 768px) {' >> index.html
-          echo '            .file-grid { grid-template-columns: 1fr; }' >> index.html
-          echo '            h1 { font-size: 2rem; }' >> index.html
-          echo '        }' >> index.html
-          echo '    </style>' >> index.html
-          echo '</head>' >> index.html
-          echo '<body>' >> index.html
-          echo '    <header>' >> index.html
-          echo '        <h1>🌿 Цифровой сад</h1>' >> index.html
-          echo '        <p class="subtitle">Реальные файлы из папки notes/</p>' >> index.html
-          echo '    </header>' >> index.html
+          # Используем CSS из obsidian-garden
+          cp ../../templates/style.css . 2>/dev/null || echo "Использую стандартный CSS"
           
-          # === ДИНАМИЧЕСКАЯ ЧАСТЬ: JavaScript который загружает реальные файлы ===
-          echo '    <div class="stats-grid" id="stats-container">' >> index.html
-          echo '        <div class="stat-card">' >> index.html
-          echo '            <div class="stat-number" id="total-files">0</div>' >> index.html
-          echo '            <div>Всего файлов</div>' >> index.html
-          echo '        </div>' >> index.html
-          echo '        <div class="stat-card">' >> index.html
-          echo '            <div class="stat-number" id="folders-count">0</div>' >> index.html
-          echo '            <div>Папок</div>' >> index.html
-          echo '        </div>' >> index.html
-          echo '        <div class="stat-card">' >> index.html
-          echo '            <div class="stat-number" id="html-files">0</div>' >> index.html
-          echo '            <div>HTML файлов</div>' >> index.html
-          echo '        </div>' >> index.html
-          echo '        <div class="stat-card">' >> index.html
-          echo '            <div class="stat-number" id="update-time">--:--</div>' >> index.html
-          echo '            <div>Обновлено</div>' >> index.html
-          echo '        </div>' >> index.html
-          echo '    </div>' >> index.html
-          
-          echo '    <input type="text" id="search" placeholder="🔍 Поиск файлов..." onkeyup="filterFiles()">' >> index.html
-          
-          echo '    <div id="content-container">' >> index.html
-          echo '        <p>Загрузка реальных файлов...</p>' >> index.html
-          echo '    </div>' >> index.html
-          
-          echo '    <footer>' >> index.html
-          echo '        <p>🚀 Автоматически сгенерировано GitHub Actions</p>' >> index.html
-          echo '        <p><a href="https://github.com/Story987/Grin" style="color: #0969da;">Исходный код на GitHub</a></p>' >> index.html
-          echo '    </footer>' >> index.html
-          
-          # === JavaScript для загрузки РЕАЛЬНЫХ файлов ===
-          echo '    <script>' >> index.html
-          echo '        // Иконки для разных типов файлов' >> index.html
-          echo '        function getFileIcon(filename) {' >> index.html
-          echo '            const ext = filename.split(".").pop().toLowerCase();' >> index.html
-          echo '            const icons = {' >> index.html
-          echo '                "html": "🌐", "htm": "🌐",' >> index.html
-          echo '                "md": "📝", "txt": "📄", "pdf": "📕",' >> index.html
-          echo '                "jpg": "🖼️", "jpeg": "🖼️", "png": "🖼️", "gif": "🖼️", "svg": "🖼️",' >> index.html
-          echo '                "mp3": "🎵", "wav": "🎵", "mp4": "🎬", "avi": "🎬",' >> index.html
-          echo '                "zip": "🗜️", "rar": "🗜️", "7z": "🗜️",' >> index.html
-          echo '                "js": "⚡", "css": "🎨", "json": "📊",' >> index.html
-                  echo '                "doc": "📘", "docx": "📘", "xls": "📗", "xlsx": "📗",' >> index.html
-          echo '                "py": "🐍", "sh": "💻", "yml": "⚙️", "yaml": "⚙️"' >> index.html
-          echo '            };' >> index.html
-          echo '            return icons[ext] || "📄";' >> index.html
-          echo '        }' >> index.html
-          
-          echo '        // Форматирование размера файла' >> index.html
-          echo '        function formatFileSize(bytes) {' >> index.html
-          echo '            if (bytes === 0) return "0 Б";' >> index.html
-          echo '            const k = 1024;' >> index.html
-          echo '            const sizes = ["Б", "КБ", "МБ", "ГБ"];' >> index.html
-          echo '            const i = Math.floor(Math.log(bytes) / Math.log(k));' >> index.html
-          echo '            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];' >> index.html
-          echo '        }' >> index.html
-          
-          echo '        // Загрузка реальных файлов из structure.json' >> index.html
-          echo '        async function loadRealFiles() {' >> index.html
-          echo '            try {' >> index.html
-          echo '                const response = await fetch("structure.json");' >> index.html
-          echo '                if (!response.ok) throw new Error("Файл structure.json не найден");' >> index.html
-          echo '                ' >> index.html
-          echo '                const data = await response.json();' >> index.html
-          echo '                renderFiles(data);' >> index.html
-          echo '            } catch (error) {' >> index.html
-          echo '                document.getElementById("content-container").innerHTML = ' >> index.html
-          echo '                    `<div class="stat-card"><p>❌ Ошибка загрузки: ${error.message}</p></div>`;' >> index.html
-          echo '            }' >> index.html
-          echo '        }' >> index.html
-          
-          echo '        // Отображение файлов' >> index.html
-          echo '        function renderFiles(data) {' >> index.html
-          echo '            const container = document.getElementById("content-container");' >> index.html
-          echo '            let html = "";' >> index.html
-          echo '            ' >> index.html
-          echo '            // Папки (КЛИКАБЕЛЬНЫЕ ССЫЛКИ!)' >> index.html
-          echo '            if (data.folders && data.folders.length > 0) {' >> index.html
-          echo '                html += `<div class="folder-section"><h2 class="folder-name">📁 Папки</h2><div class="file-grid">`;' >> index.html
-          echo '                data.folders.forEach(folder => {' >> index.html
-          echo '                    // КЛИКАБЕЛЬНАЯ ССЫЛКА НА ПАПКУ!' >> index.html
-          echo '                    html += `<a href="${encodeURIComponent(folder.name)}/" class="file-card">`;' >> index.html
-          echo '                    html += `<div class="file-icon">📁</div>`;' >> index.html
-          echo '                    html += `<div class="file-info">`;' >> index.html
-          echo '                    html += `<div class="file-name">${folder.name}</div>`;' >> index.html
-          echo '                    html += `<div class="file-meta">${folder.fileCount} файл(ов) • ${formatFileSize(folder.totalSize)}</div>`;' >> index.html
-          echo '                    html += `</div></a>`;' >> index.html
-          echo '                });' >> index.html
-          echo '                html += `</div></div>`;' >> index.html
-          echo '            }' >> index.html
-          echo '            ' >> index.html
-          echo '            // Файлы в корне (КЛИКАБЕЛЬНЫЕ ССЫЛКИ!)' >> index.html
-          echo '            if (data.files && data.files.length > 0) {' >> index.html
-          echo '                html += `<div class="folder-section"><h2 class="folder-name">📄 Файлы в корне</h2><div class="file-grid">`;' >> index.html
-          echo '                data.files.forEach(file => {' >> index.html
-          echo '                    // КЛИКАБЕЛЬНАЯ ССЫЛКА НА ФАЙЛ!' >> index.html
-          echo '                    html += `<a href="${encodeURIComponent(file.name)}" class="file-card" target="_blank">`;' >> index.html
-          echo '                    html += `<div class="file-icon">${getFileIcon(file.name)}</div>`;' >> index.html
-          echo '                    html += `<div class="file-info">`;' >> index.html
-          echo '                    html += `<div class="file-name">${file.name}</div>`;' >> index.html
-          echo '                    html += `<div class="file-meta">${formatFileSize(file.size)} • ${file.ext.toUpperCase()}</div>`;' >> index.html
-          echo '                    html += `</div></a>`;' >> index.html
-          echo '                });' >> index.html
-          echo '                html += `</div></div>`;' >> index.html
-          echo '            }' >> index.html
-          echo '            ' >> index.html
-          echo '            // Если ничего нет' >> index.html
-          echo '            if (!html) {' >> index.html
-          echo '                html = `<div class="stat-card"><p>📭 Папка пуста</p></div>`;' >> index.html
-          echo '            }' >> index.html
-          echo '            ' >> index.html
-          echo '            container.innerHTML = html;' >> index.html
-          echo '            ' >> index.html
-          echo '            // Обновляем статистику' >> index.html
-          echo '            updateStats(data);' >> index.html
-          echo '        }' >> index.html
-          
-          echo '        // Обновление статистики' >> index.html
-          echo '        function updateStats(data) {' >> index.html
-          echo '            const totalFiles = (data.files ? data.files.length : 0) + ' >> index.html
-          echo '                             (data.folders ? data.folders.reduce((sum, f) => sum + f.fileCount, 0) : 0);' >> index.html
-          echo '            const htmlFiles = data.files ? data.files.filter(f => f.ext === "html" || f.ext === "htm").length : 0;' >> index.html
-          echo '            ' >> index.html
-          echo '            document.getElementById("total-files").textContent = totalFiles;' >> index.html
-          echo '            document.getElementById("folders-count").textContent = data.folders ? data.folders.length : 0;' >> index.html
-          echo '            document.getElementById("html-files").textContent = htmlFiles;' >> index.html
-          echo '            document.getElementById("update-time").textContent = ' >> index.html
-          echo '                new Date().toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"});' >> index.html
-          echo '        }' >> index.html
-          
-          echo '        // Поиск файлов' >> index.html
-          echo '        function filterFiles() {' >> index.html
-          echo '            const search = document.getElementById("search").value.toLowerCase();' >> index.html
-          echo '            const cards = document.querySelectorAll(".file-card");' >> index.html
-          echo '            ' >> index.html
-          echo '            cards.forEach(card => {' >> index.html
-          echo '                const name = card.querySelector(".file-name").textContent.toLowerCase();' >> index.html
-          echo '                card.style.display = name.includes(search) ? "flex" : "none";' >> index.html
-          echo '            });' >> index.html
-          echo '        }' >> index.html
-          
-          echo '        // Автоматическая загрузка при открытии' >> index.html
-          echo '        document.addEventListener("DOMContentLoaded", function() {' >> index.html
-          echo '            loadRealFiles();' >> index.html
-          echo '            ' >> index.html
-          echo '            // Автообновление каждые 5 минут' >> index.html
-          echo '            setInterval(() => {' >> index.html
-          echo '                document.getElementById("update-time").textContent = ' >> index.html
-          echo '                    new Date().toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"});' >> index.html
-          echo '            }, 300000);' >> index.html
-          echo '        });' >> index.html
-          echo '    </script>' >> index.html
-          echo '</body>' >> index.html
-          echo '</html>' >> index.html
-          
-          echo "✅ Создан index.html с кликабельными ссылками на реальные файлы"
+          # Основная страница
+          cat > index.html << 'HTML'
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌿 Digital Garden</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Дополнительные стили из obsidian-garden */
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #7b68ee;
+            --bg-color: #0f0f1a;
+            --text-color: #e0e0e0;
+            --card-bg: #1a1a2e;
+            --border-color: #2a2a3e;
+        }
         
-      # ШАГ 3: Копируем ВСЕ файлы
-      - name: Prepare all files for upload
-        run: |
-          echo "📦 Подготавливаю файлы для загрузки..."
-          mkdir -p ./deploy-ready
-          cp -r src/site/notes/* ./deploy-ready/ 2>/dev/null || true
+        body {
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', -apple-system, sans-serif;
+        }
         
-      # ШАГ 4: Деплой
-      - name: Setup GitHub Pages
+        .garden-header {
+            text-align: center;
+            padding: 3rem 1rem;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .notes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .note-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .note-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-color);
+            box-shadow: 0 10px 30px rgba(74, 144, 226, 0.2);
+        }
+        
+        .note-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .tag {
+            background: rgba(74, 144, 226, 0.1);
+            color: var(--primary-color);
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        
+        .search-box {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+        
+        #search-input {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 50px;
+            color: var(--text-color);
+            font-size: 1rem;
+        }
+        
+        .backlinks {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 2rem auto;
+            max-width: 800px;
+        }
+    </style>
+</head>
+<body>
+    <div class="garden-header">
+        <h1 style="font-size: 3rem; margin-bottom: 1rem;">🌿 Digital Garden</h1>
+        <p style="color: #aaa; max-width: 600px; margin: 0 auto;">
+            Коллекция взаимосвязанных мыслей и заметок
+        </p>
+    </div>
+    
+    <div class="search-box">
+        <input type="text" id="search-input" placeholder="🔍 Поиск по заметкам...">
+    </div>
+    
+    <div class="notes-grid" id="notes-container">
+        <!-- Заметки будут загружены JavaScript -->
+        <p>Загрузка заметок...</p>
+    </div>
+    
+    <div class="backlinks">
+        <h3>📚 Все файлы</h3>
+        <div id="all-files"></div>
+    </div>
+    
+    <script>
+        // Загрузка структуры заметок
+        async function loadNotes() {
+            try {
+                const response = await fetch('notes-structure.json');
+                const data = await response.json();
+                renderNotes(data.notes);
+            } catch (error) {
+                document.getElementById('notes-container').innerHTML = 
+                    `<div class="note-card"><p>Ошибка загрузки: ${error.message}</p></div>`;
+            }
+        }
+        
+        function renderNotes(notes) {
+            const container = document.getElementById('notes-container');
+            const allFiles = document.getElementById('all-files');
+            
+            let notesHtml = '';
+            let filesHtml = '<div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">';
+            
+            notes.forEach(note => {
+                // Карточка заметки
+                notesHtml += `
+                    <a href="${encodeURIComponent(note.path)}/${encodeURIComponent(note.file)}" 
+                       class="note-card">
+                        <h3>${note.title}</h3>
+                        <p style="color: #aaa; font-size: 0.9rem; margin-top: 0.5rem;">
+                            ${note.path ? '📁 ' + note.path : '📄'} • 
+                            ${Math.ceil(note.size / 1024)} KB
+                        </p>
+                        <div class="note-tags">
+                            <span class="tag">${note.type.replace('.', '')}</span>
+                            ${note.path ? `<span class="tag">${note.path.split('/')[0]}</span>` : ''}
+                        </div>
+                    </a>
+                `;
+                
+                // Простой список всех файлов
+                filesHtml += `
+                    <a href="${encodeURIComponent(note.path)}/${encodeURIComponent(note.file)}"
+                       style="display: inline-block; padding: 0.3rem 0.8rem; 
+                              background: #2a2a3e; border-radius: 6px; 
+                              color: #ccc; text-decoration: none; font-size: 0.9rem;">
+                        ${note.file}
+                    </a>
+                `;
+            });
+            
+            filesHtml += '</div>';
+            
+            container.innerHTML = notesHtml;
+            allFiles.innerHTML = filesHtml;
+            
+            // Поиск
+            document.getElementById('search-input').addEventListener('input', function(e) {
+                const term = e.target.value.toLowerCase();
+                const cards = document.querySelectorAll('.note-card');
+                
+                cards.forEach(card => {
+                    const title = card.querySelector('h3').textContent.toLowerCase();
+                    const visible = title.includes(term);
+                    card.style.display = visible ? 'block' : 'none';
+                });
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', loadNotes);
+    </script>
+</body>
+</html>
+HTML
+          
+          echo "✅ Главная страница создана в стиле Obsidian Garden"
+
+      # 4. Деплой
+      - name: Setup Pages
         uses: actions/configure-pages@v5
         
-      - name: Upload ALL files
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './deploy-ready/'
+          path: 'src/site/notes/'
         
       - name: Deploy to GitHub Pages
         id: deployment
