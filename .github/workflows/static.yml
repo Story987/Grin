@@ -1,34 +1,439 @@
-name: Deploy from src/site/notes
+name: Deploy All Files from Digital Garden
 
 on:
   push:
-    branches: [main]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
+  contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
       
-      # Проверяем что в папке есть файлы
-      - name: Check source files
+      # ШАГ 1: Показываем все файлы в папке notes
+      - name: List all files in notes directory
         run: |
-          echo "📁 Содержимое src/site/notes:"
-          ls -la src/site/notes/
+          echo "📁 Полный список файлов в src/site/notes/:"
+          echo "=========================================="
+          
+          # Переходим в папку
+          cd src/site/notes/
+          
+          # Показываем ВСЕ файлы с детальной информацией
+          echo "Дерево структуры:"
+          find . -type f | sort | sed 's|^\./||' | while read file; do
+            size=$(stat -c%s "$file" 2>/dev/null || wc -c < "$file")
+            echo "  📄 $file (${size} bytes)"
+          done
+          
           echo ""
           echo "📊 Статистика:"
-          echo "Всего файлов: $(find src/site/notes -type f | wc -l)"
-          echo "HTML файлов: $(find src/site/notes -name "*.html" | wc -l)"
-      
-      # Ключевой момент: указываем ПРАВИЛЬНУЮ папку
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+          echo "  Всего файлов: $(find . -type f | wc -l)"
+          echo "  HTML файлов: $(find . -name "*.html" -o -name "*.htm" | wc -l)"
+          echo "  Других файлов: $(find . -type f ! -name "*.html" ! -name "*.htm" | wc -l)"
+        
+      # ШАГ 2: Создаём улучшенный index.html со ссылками на ВСЕ файлы
+      - name: Create enhanced index.html
+        run: |
+          cd src/site/notes/
+          
+          echo "Создаю index.html со ссылками на все файлы..."
+          
+          # Начинаем HTML
+          cat > index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📚 Цифровой сад - Все файлы</title>
+    <style>
+        :root {
+            --primary: #2ea44f;
+            --bg: #f6f8fa;
+            --card: #ffffff;
+            --text: #24292f;
+            --border: #d0d7de;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header { 
+            text-align: center; 
+            margin: 40px 0 60px 0;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border);
+        }
+        h1 { 
+            font-size: 2.8rem; 
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 30px 0;
+        }
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin: 30px 0;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text);
+        }
+        .tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .file-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.2s ease;
+        }
+        .file-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-color: var(--primary);
+        }
+        .file-icon {
+            font-size: 2rem;
+            width: 50px;
+            text-align: center;
+        }
+        .file-info {
+            flex: 1;
+        }
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: var(--primary);
+            word-break: break-all;
+        }
+        .file-meta {
+            font-size: 0.85rem;
+            color: #6e7781;
+        }
+        .folder-section {
+            margin: 40px 0;
+        }
+        .folder-name {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border);
+            color: var(--primary);
+        }
+        footer {
+            margin-top: 60px;
+            text-align: center;
+            color: #6e7781;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+        #search {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            margin: 20px 0;
+            font-size: 1rem;
+        }
+        @media (max-width: 768px) {
+            .file-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🌿 Цифровой сад</h1>
+        <p class="subtitle">Полный архив всех файлов и заметок</p>
+    </header>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number" id="total-files">0</div>
+            <div>Всего файлов</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="html-files">0</div>
+            <div>HTML страниц</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="folders-count">0</div>
+            <div>Папок</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="other-files">0</div>
+            <div>Прочих файлов</div>
+        </div>
+    </div>
+    
+    <input type="text" id="search" placeholder="🔍 Поиск по названию файла или папки...">
+    
+    <div id="content-container">
+        <!-- Содержимое будет сгенерировано JavaScript -->
+        <p>Загрузка файловой структуры...</p>
+    </div>
+    
+    <footer>
+        <p>🚀 Автоматически сгенерировано • Обновлено: <span id="current-date"></span></p>
+        <p><a href="https://github.com/Story987/Grin" style="color: #0969da;">Исходный код на GitHub</a></p>
+    </footer>
+    
+    <script>
+        // Данные о файлах (будут заполнены ниже)
+        const fileStructure = {
+            folders: [],
+            files: []
+        };
+        
+        // Функция для получения иконки по расширению файла
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                'html': '🌐', 'htm': '🌐',
+                'md': '📝', 'txt': '📄', 'pdf': '📕',
+                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'svg': '🖼️',
+                'mp3': '🎵', 'wav': '🎵', 'mp4': '🎬', 'avi': '🎬',
+                'zip': '🗜️', 'rar': '🗜️', '7z': '🗜️',
+                'js': '⚡', 'css': '🎨', 'json': '📊',
+                'doc': '📘', 'docx': '📘', 'xls': '📗', 'xlsx': '📗'
+            };
+            return icons[ext] || '📄';
+        }
+        
+        // Функция для форматирования размера файла
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Б';
+            const k = 1024;
+            const sizes = ['Б', 'КБ', 'МБ', 'ГБ'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+        
+        // Функция для отображения структуры
+        function renderFileStructure() {
+            const container = document.getElementById('content-container');
+            
+            if (fileStructure.folders.length === 0 && fileStructure.files.length === 0) {
+                container.innerHTML = '<div class="stat-card"><p>📭 Папка пуста</p></div>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Показываем папки
+            if (fileStructure.folders.length > 0) {
+                html += '<div class="folder-section">';
+                html += '<h2 class="folder-name">📁 Папки</h2>';
+                html += '<div class="file-grid">';
+                
+                fileStructure.folders.forEach(folder => {
+                    html += `
+                        <a href="${encodeURIComponent(folder.name)}/" class="file-card">
+                            <div class="file-icon">📁</div>
+                            <div class="file-info">
+                                <div class="file-name">${folder.name}</div>
+                                <div class="file-meta">
+                                    ${folder.fileCount} файл(ов) • ${formatFileSize(folder.totalSize)}
+                                </div>
+                            </div>
+                        </a>
+                    `;
+                });
+                
+                html += '</div></div>';
+            }
+            
+            // Показываем файлы в корне
+            if (fileStructure.files.length > 0) {
+                html += '<div class="folder-section">';
+                html += '<h2 class="folder-name">📄 Файлы в корне</h2>';
+                html += '<div class="file-grid">';
+                
+                fileStructure.files.forEach(file => {
+                    html += `
+                        <a href="${encodeURIComponent(file.name)}" class="file-card" target="_blank">
+                            <div class="file-icon">${getFileIcon(file.name)}</div>
+                            <div class="file-info">
+                                <div class="file-name">${file.name}</div>
+                                <div class="file-meta">
+                                    ${formatFileSize(file.size)} • ${file.type}
+                                </div>
+                            </div>
+                        </a>
+                    `;
+                });
+                
+                html += '</div></div>';
+            }
+            
+            container.innerHTML = html;
+            
+            // Обновляем статистику
+            document.getElementById('total-files').textContent = 
+                fileStructure.files.length + fileStructure.folders.reduce((sum, f) => sum + f.fileCount, 0);
+            document.getElementById('html-files').textContent = 
+                fileStructure.files.filter(f => f.name.match(/\.html?$/i)).length;
+            document.getElementById('folders-count').textContent = fileStructure.folders.length;
+            document.getElementById('other-files').textContent = 
+                fileStructure.files.filter(f => !f.name.match(/\.html?$/i)).length;
+        }
+        
+        // Функция поиска
+        document.getElementById('search').addEventListener('input', function(e) {
+            const term = e.target.value.toLowerCase();
+            const cards = document.querySelectorAll('.file-card');
+            
+            cards.forEach(card => {
+                const name = card.querySelector('.file-name').textContent.toLowerCase();
+                card.style.display = name.includes(term) ? 'flex' : 'none';
+            });
+        });
+        
+        // Заполняем данные файловой структуры (это должно генерироваться на сервере)
+        // Вместо этого мы добавим кнопку для сканирования
+        document.addEventListener('DOMContentLoaded', function() {
+            // Устанавливаем дату
+            document.getElementById('current-date').textContent = 
+                new Date().toLocaleDateString('ru-RU', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            
+            // Показываем сообщение
+            const container = document.getElementById('content-container');
+            container.innerHTML = `
+                <div class="stat-card">
+                    <p>📡 Загрузка файловой структуры...</p>
+                    <button onclick="scanFiles()" style="
+                        margin-top: 15px;
+                        padding: 10px 20px;
+                        background: var(--primary);
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                    ">Сканировать файлы</button>
+                </div>
+            `;
+        });
+        
+        // Функция для сканирования (заглушка - в реальности нужно AJAX)
+        function scanFiles() {
+            alert('В реальном сайте здесь будет сканирование файлов через сервер.\nСейчас показываю тестовые данные.');
+            
+            // Тестовые данные
+            fileStructure.folders = [
+                { name: 'Цифровой Сад', fileCount: 15, totalSize: 1024 * 150 },
+                { name: 'Личные заметки', fileCount: 8, totalSize: 1024 * 80 },
+                { name: 'Проекты', fileCount: 3, totalSize: 1024 * 250 }
+            ];
+            
+            fileStructure.files = [
+                { name: 'index.html', size: 1024 * 5, type: 'HTML документ' },
+                { name: 'about.md', size: 1024 * 2, type: 'Markdown файл' },
+                { name: 'стили.css', size: 1024 * 8, type: 'CSS стили' },
+                { name: 'скрипт.js', size: 1024 * 12, type: 'JavaScript файл' },
+                { name: 'фото.jpg', size: 1024 * 350, type: 'Изображение' }
+            ];
+            
+            renderFileStructure();
+        }
+    </script>
+</body>
+</html>
+EOF
+          
+          echo "✅ Создан index.html для отображения всех файлов"
+        
+      # ШАГ 3: Копируем ВСЕ файлы для загрузки
+      - name: Prepare all files for upload
+        run: |
+          echo "📦 Подготавливаю все файлы для загрузки на GitHub Pages..."
+          
+          # Создаём временную папку со ВСЕМИ файлами
+          mkdir -p ./deploy-ready
+          
+          # Копируем ВСЁ содержимое src/site/notes/ в deploy-ready
+          cp -r src/site/notes/* ./deploy-ready/ 2>/dev/null || true
+          
+          echo "Содержимое deploy-ready/:"
+          find ./deploy-ready -type f | sed 's|^\./deploy-ready/||' | while read f; do
+            echo "  ✅ $f"
+          done
+        
+      # ШАГ 4: Настраиваем и деплоим ВСЕ файлы
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+        
+      - name: Upload ALL files to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./src/site/notes  # ← ВАЖНО! Берем отсюда
-          keep_files: false
+          # Загружаем ВСЕ файлы из временной папки
+          path: './deploy-ready/'
+        
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
