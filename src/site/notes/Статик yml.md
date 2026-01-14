@@ -1,14 +1,4 @@
-
-document.getElementById('notes-container').innerHTML = 
-                    `<div class="note-card"><p>Ошибка загрузки: ${error.message}</p></div>`;
-            }
-        }
-
-        function renderNotes(notes) {
-            const container = document.getElementById('notes-container');
-            const allFiles = document.getElementById('all-files');
-
-            let notesHtml = '';
+;
             let filesHtml = '<div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">';
 
             notes.forEach(note => {
