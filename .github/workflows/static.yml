@@ -46,26 +46,27 @@ jobs:
           
           echo "✅ Шаблоны загружены"
 
-      # 2. Анализируем структуру как в obsidian-garden (БЕЗ HEREDOC)
+      # 2. Анализируем структуру как в obsidian-garden
       - name: Analyze notes structure
         id: scan
         run: |
           cd src/site/notes
           echo "🔍 Анализирую структуру заметок..."
           
-          # Начинаем создание JSON файла
-          echo '{' > notes-structure.json
-          echo '  "generated": "'$(date)'",' >> notes-structure.json
-          echo '  "notes": [' >> notes-structure.json
+          # Создаём структуру как в obsidian
+          cat > notes-structure.json << 'EOF'
+          {
+            "generated": "$(date)",
+            "notes": [
+          EOF
           
           # Находим все markdown/html файлы
-          file_count=0
           first=true
           find . -name "*.md" -o -name "*.html" -o -name "*.htm" | while read file; do
             if [ "$first" = true ]; then
               first=false
             else
-              echo ',' >> notes-structure.json
+              echo "," >> notes-structure.json
             fi
             
             filename=$(basename "$file")
@@ -79,30 +80,21 @@ jobs:
               title=$(echo "$filename" | sed 's/\.[^.]*$//')
             fi
             
-            # Если title пустой, используем filename
-            if [ -z "$title" ]; then
-              title="$filename"
-            fi
-            
-            file_type=$(echo "$filename" | grep -o '\.[^.]*$')
-            
-            echo '    {' >> notes-structure.json
-            echo '      "file": "'$filename'",' >> notes-structure.json
-            echo '      "path": "'$path'",' >> notes-structure.json
-            echo '      "title": "'$title'",' >> notes-structure.json
-            echo '      "size": '$size',' >> notes-structure.json
-            echo '      "type": "'$file_type'"' >> notes-structure.json
-            echo '    }' >> notes-structure.json
-            
-            file_count=$((file_count + 1))
+            echo "  {" >> notes-structure.json
+            echo "    \"file\": \"$filename\"," >> notes-structure.json
+            echo "    \"path\": \"$path\"," >> notes-structure.json
+            echo "    \"title\": \"${title:-$filename}\"," >> notes-structure.json
+            echo "    \"size\": $size," >> notes-structure.json
+            echo "    \"type\": \"$(echo "$filename" | grep -o '\.[^.]*$')\"" >> notes-structure.json
+            echo "  }" >> notes-structure.json
           done
           
-          echo '  ]' >> notes-structure.json
-          echo '}' >> notes-structure.json
+          echo "]" >> notes-structure.json
+          echo "}" >> notes-structure.json
           
-          echo "📊 Найдено заметок: $file_count"
+          echo "📊 Найдено заметок: $(grep -c '"file"' notes-structure.json)"
 
-      # 3. Создаём главную страницу в стиле obsidian-garden (БЕЗ HEREDOC)
+      # 3. Создаём главную страницу в стиле obsidian-garden
       - name: Create obsidian-style index
         run: |
           cd src/site/notes
@@ -111,195 +103,197 @@ jobs:
           # Используем CSS из obsidian-garden
           cp ../../templates/style.css . 2>/dev/null || echo "Использую стандартный CSS"
           
-          # Основная страница - создаем через echo построчно
-          echo '<!DOCTYPE html>' > index.html
-          echo '<html lang="ru">' >> index.html
-          echo '<head>' >> index.html
-          echo '    <meta charset="UTF-8">' >> index.html
-          echo '    <meta name="viewport" content="width=device-width, initial-scale=1.0">' >> index.html
-          echo '    <title>🌿 Digital Garden</title>' >> index.html
-          echo '    <link rel="stylesheet" href="style.css">' >> index.html
-          echo '    <style>' >> index.html
-          echo '        /* Дополнительные стили из obsidian-garden */' >> index.html
-          echo '        :root {' >> index.html
-          echo '            --primary-color: #4a90e2;' >> index.html
-          echo '            --secondary-color: #7b68ee;' >> index.html
-          echo '            --bg-color: #0f0f1a;' >> index.html
-          echo '            --text-color: #e0e0e0;' >> index.html
-          echo '            --card-bg: #1a1a2e;' >> index.html
-          echo '            --border-color: #2a2a3e;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        body {' >> index.html
-          echo '            background: var(--bg-color);' >> index.html
-          echo '            color: var(--text-color);' >> index.html
-          echo '            font-family: "Inter", -apple-system, sans-serif;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .garden-header {' >> index.html
-          echo '            text-align: center;' >> index.html
-          echo '            padding: 3rem 1rem;' >> index.html
-          echo '            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);' >> index.html
-          echo '            border-bottom: 1px solid var(--border-color);' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .notes-grid {' >> index.html
-          echo '            display: grid;' >> index.html
-          echo '            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));' >> index.html
-          echo '            gap: 1.5rem;' >> index.html
-          echo '            padding: 2rem;' >> index.html
-          echo '            max-width: 1400px;' >> index.html
-          echo '            margin: 0 auto;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .note-card {' >> index.html
-          echo '            background: var(--card-bg);' >> index.html
-          echo '            border: 1px solid var(--border-color);' >> index.html
-          echo '            border-radius: 12px;' >> index.html
-          echo '            padding: 1.5rem;' >> index.html
-          echo '            transition: all 0.3s ease;' >> index.html
-          echo '            text-decoration: none;' >> index.html
-          echo '            color: inherit;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .note-card:hover {' >> index.html
-          echo '            transform: translateY(-5px);' >> index.html
-          echo '            border-color: var(--primary-color);' >> index.html
-          echo '            box-shadow: 0 10px 30px rgba(74, 144, 226, 0.2);' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .note-tags {' >> index.html
-          echo '            display: flex;' >> index.html
-          echo '            flex-wrap: wrap;' >> index.html
-          echo '            gap: 0.5rem;' >> index.html
-          echo '            margin-top: 1rem;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .tag {' >> index.html
-          echo '            background: rgba(74, 144, 226, 0.1);' >> index.html
-          echo '            color: var(--primary-color);' >> index.html
-          echo '            padding: 0.3rem 0.8rem;' >> index.html
-          echo '            border-radius: 20px;' >> index.html
-          echo '            font-size: 0.85rem;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .search-box {' >> index.html
-          echo '            max-width: 600px;' >> index.html
-          echo '            margin: 2rem auto;' >> index.html
-          echo '            padding: 0 2rem;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        #search-input {' >> index.html
-          echo '            width: 100%;' >> index.html
-          echo '            padding: 1rem 1.5rem;' >> index.html
-          echo '            background: var(--card-bg);' >> index.html
-          echo '            border: 1px solid var(--border-color);' >> index.html
-          echo '            border-radius: 50px;' >> index.html
-          echo '            color: var(--text-color);' >> index.html
-          echo '            font-size: 1rem;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .backlinks {' >> index.html
-          echo '            background: var(--card-bg);' >> index.html
-          echo '            border-radius: 10px;' >> index.html
-          echo '            padding: 1.5rem;' >> index.html
-          echo '            margin: 2rem auto;' >> index.html
-          echo '            max-width: 800px;' >> index.html
-          echo '        }' >> index.html
-          echo '    </style>' >> index.html
-          echo '</head>' >> index.html
-          echo '<body>' >> index.html
-          echo '    <div class="garden-header">' >> index.html
-          echo '        <h1 style="font-size: 3rem; margin-bottom: 1rem;">🌿 Digital Garden</h1>' >> index.html
-          echo '        <p style="color: #aaa; max-width: 600px; margin: 0 auto;">' >> index.html
-          echo '            Коллекция взаимосвязанных мыслей и заметок' >> index.html
-          echo '        </p>' >> index.html
-          echo '    </div>' >> index.html
-          echo '' >> index.html
-          echo '    <div class="search-box">' >> index.html
-          echo '        <input type="text" id="search-input" placeholder="🔍 Поиск по заметкам...">' >> index.html
-          echo '    </div>' >> index.html
-          echo '' >> index.html
-          echo '    <div class="notes-grid" id="notes-container">' >> index.html
-          echo '        <!-- Заметки будут загружены JavaScript -->' >> index.html
-          echo '        <p>Загрузка заметок...</p>' >> index.html
-          echo '    </div>' >> index.html
-          echo '' >> index.html
-          echo '    <div class="backlinks">' >> index.html
-          echo '        <h3>📚 Все файлы</h3>' >> index.html
-          echo '        <div id="all-files"></div>' >> index.html
-          echo '    </div>' >> index.html
-          echo '' >> index.html
-          echo '    <script>' >> index.html
-          echo '        // Загрузка структуры заметок' >> index.html
-          echo '        async function loadNotes() {' >> index.html
-          echo '            try {' >> index.html
-          echo '                const response = await fetch("notes-structure.json");' >> index.html
-          echo '                const data = await response.json();' >> index.html
-          echo '                renderNotes(data.notes);' >> index.html
-          echo '            } catch (error) {' >> index.html
-          echo '                document.getElementById("notes-container").innerHTML = ' >> index.html
-          echo '                    `<div class="note-card"><p>Ошибка загрузки: ${error.message}</p></div>`;' >> index.html
-          echo '            }' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        function renderNotes(notes) {' >> index.html
-          echo '            const container = document.getElementById("notes-container");' >> index.html
-          echo '            const allFiles = document.getElementById("all-files");' >> index.html
-          echo '' >> index.html
-          echo '            let notesHtml = "";' >> index.html
-          echo '            let filesHtml = "<div style=\"display: flex; flex-wrap: wrap; gap: 0.5rem;\">";' >> index.html
-          echo '' >> index.html
-          echo '            notes.forEach(note => {' >> index.html
-          echo '                // Карточка заметки' >> index.html
-          echo '                notesHtml += `' >> index.html
-          echo '                    <a href="${encodeURIComponent(note.path)}/${encodeURIComponent(note.file)}" ' >> index.html
-          echo '                       class="note-card">' >> index.html
-          echo '                        <h3>${note.title}</h3>' >> index.html
-          echo '                        <p style="color: #aaa; font-size: 0.9rem; margin-top: 0.5rem;">' >> index.html
-          echo '                            ${note.path ? "📁 " + note.path : "📄"} • ' >> index.html
-          echo '                            ${Math.ceil(note.size / 1024)} KB' >> index.html
-          echo '                        </p>' >> index.html
-          echo '                        <div class="note-tags">' >> index.html
-          echo '                            <span class="tag">${note.type.replace(".", "")}</span>' >> index.html
-          echo '                            ${note.path ? `<span class="tag">${note.path.split("/")[0]}</span>` : ""}' >> index.html
-          echo '                        </div>' >> index.html
-          echo '                    </a>' >> index.html
-          echo '                `;' >> index.html
-          echo '                ' >> index.html
-          echo '                // Простой список всех файлов' >> index.html
-          echo '                filesHtml += `' >> index.html
-          echo '                    <a href="${encodeURIComponent(note.path)}/${encodeURIComponent(note.file)}"' >> index.html
-          echo '                       style="display: inline-block; padding: 0.3rem 0.8rem; ' >> index.html
-          echo '                              background: #2a2a3e; border-radius: 6px; ' >> index.html
-          echo '                              color: #ccc; text-decoration: none; font-size: 0.9rem;">' >> index.html
-          echo '                        ${note.file}' >> index.html
-          echo '                    </a>' >> index.html
-          echo '                `;' >> index.html
-          echo '            });' >> index.html
-          echo '            ' >> index.html
-          echo '            filesHtml += "</div>";' >> index.html
-          echo '            ' >> index.html
-          echo '            container.innerHTML = notesHtml;' >> index.html
-          echo '            allFiles.innerHTML = filesHtml;' >> index.html
-          echo '            ' >> index.html
-          echo '            // Поиск' >> index.html
-          echo '            document.getElementById("search-input").addEventListener("input", function(e) {' >> index.html
-          echo '                const term = e.target.value.toLowerCase();' >> index.html
-          echo '                const cards = document.querySelectorAll(".note-card");' >> index.html
-          echo '                ' >> index.html
-          echo '                cards.forEach(card => {' >> index.html
-          echo '                    const title = card.querySelector("h3").textContent.toLowerCase();' >> index.html
-          echo '                    const visible = title.includes(term);' >> index.html
-          echo '                    card.style.display = visible ? "block" : "none";' >> index.html
-          echo '                });' >> index.html
-          echo '            });' >> index.html
-          echo '        }' >> index.html
-          echo '        ' >> index.html
-          echo '        document.addEventListener("DOMContentLoaded", loadNotes);' >> index.html
-          echo '    </script>' >> index.html
-          echo '</body>' >> index.html
-          echo '</html>' >> index.html
+          # Основная страница
+          cat > index.html << 'HTML'
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌿 Digital Garden</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Дополнительные стили из obsidian-garden */
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #7b68ee;
+            --bg-color: #0f0f1a;
+            --text-color: #e0e0e0;
+            --card-bg: #1a1a2e;
+            --border-color: #2a2a3e;
+        }
+
+        body {
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', -apple-system, sans-serif;
+        }
+
+        .garden-header {
+            text-align: center;
+            padding: 3rem 1rem;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .notes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .note-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .note-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-color);
+            box-shadow: 0 10px 30px rgba(74, 144, 226, 0.2);
+        }
+
+        .note-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .tag {
+            background: rgba(74, 144, 226, 0.1);
+            color: var(--primary-color);
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .search-box {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        #search-input {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 50px;
+            color: var(--text-color);
+            font-size: 1rem;
+        }
+
+        .backlinks {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 2rem auto;
+            max-width: 800px;
+        }
+    </style>
+</head>
+<body>
+    <div class="garden-header">
+        <h1 style="font-size: 3rem; margin-bottom: 1rem;">🌿 Digital Garden</h1>
+        <p style="color: #aaa; max-width: 600px; margin: 0 auto;">
+            Коллекция взаимосвязанных мыслей и заметок
+        </p>
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="search-input" placeholder="🔍 Поиск по заметкам...">
+    </div>
+
+    <div class="notes-grid" id="notes-container">
+        <!-- Заметки будут загружены JavaScript -->
+        <p>Загрузка заметок...</p>
+    </div>
+
+    <div class="backlinks">
+        <h3>📚 Все файлы</h3>
+        <div id="all-files"></div>
+    </div>
+
+    <script>
+        // Загрузка структуры заметок
+        async function loadNotes() {
+            try {
+                const response = await fetch('notes-structure.json');
+                const data = await response.json();
+                renderNotes(data.notes);
+            } catch (error) {
+                document.getElementById('notes-container').innerHTML = 
+                    `<div class="note-card"><p>Ошибка загрузки: ${error.message}</p></div>`;
+            }
+        }
+
+        function renderNotes(notes) {
+            const container = document.getElementById('notes-container');
+            const allFiles = document.getElementById('all-files');
+
+            let notesHtml = '';
+            let filesHtml = '<div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">';
+
+            notes.forEach(note => {
+                // Карточка заметки
+                notesHtml += `
+                    <a href="${encodeURIComponent(note.path)}/${encodeURIComponent(note.file)}" 
+                       class="note-card">
+                        <h3>${note.title}</h3>
+                        <p style="color: #aaa; font-size: 0.9rem; margin-top: 0.5rem;">
+                            ${note.path ? '📁 ' + note.path : '📄'} • 
+                            ${Math.ceil(note.size / 1024)} KB
+                        </p>
+                        <div class="note-tags">
+                            <span class="tag">${note.type.replace('.', '')}</span>
+                            ${note.path ? `<span class="tag">${note.path.split('/')[0]}</span>` : ''}
+                        </div>
+                    </a>
+                `;
+                
+                // Простой список всех файлов
+                filesHtml += `
+                    <a href="${encodeURIComponent(note.path)}/${encodeURIComponent(note.file)}"
+                       style="display: inline-block; padding: 0.3rem 0.8rem; 
+                              background: #2a2a3e; border-radius: 6px; 
+                              color: #ccc; text-decoration: none; font-size: 0.9rem;">
+                        ${note.file}
+                    </a>
+                `;
+            });
+            
+            filesHtml += '</div>';
+            
+            container.innerHTML = notesHtml;
+            allFiles.innerHTML = filesHtml;
+            
+            // Поиск
+            document.getElementById('search-input').addEventListener('input', function(e) {
+                const term = e.target.value.toLowerCase();
+                const cards = document.querySelectorAll('.note-card');
+                
+                cards.forEach(card => {
+                    const title = card.querySelector('h3').textContent.toLowerCase();
+                    const visible = title.includes(term);
+                    card.style.display = visible ? 'block' : 'none';
+                });
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', loadNotes);
+    </script>
+</body>
+</html>
+HTML
           
           echo "✅ Главная страница создана в стиле Obsidian Garden"
 
