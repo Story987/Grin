@@ -1,39 +1,5 @@
-    --
-            display: grid;
-            translateY(-5px);
-            
-            
-<body>
-    <div class="garden-header">
-        <h1 style="font-size: 3rem; margin-bottom: 1rem;">🌿 Digital Garden</h1>
-        <p style="color: #aaa; max-width: 600px; margin: 0 auto;">
-            Коллекция взаимосвязанных мыслей и заметок
-        </p>
-    </div>
 
-    <div class="search-box">
-        <input type="text" id="search-input" placeholder="🔍 Поиск по заметкам...">
-    </div>
-
-    <div class="notes-grid" id="notes-container">
-        <!-- Заметки будут загружены JavaScript -->
-        <p>Загрузка заметок...</p>
-    </div>
-
-    <div class="backlinks">
-        <h3>📚 Все файлы</h3>
-        <div id="all-files"></div>
-    </div>
-
-    <script>
-        // Загрузка структуры заметок
-        async function loadNotes() {
-            try {
-                const response = await fetch('notes-structure.json');
-                const data = await response.json();
-                renderNotes(data.notes);
-            } catch (error) {
-                document.getElementById('notes-container').innerHTML = 
+document.getElementById('notes-container').innerHTML = 
                     `<div class="note-card"><p>Ошибка загрузки: ${error.message}</p></div>`;
             }
         }
@@ -94,10 +60,3 @@
         document.addEventListener('DOMContentLoaded', loadNotes);
     </script>
 </body>
-</html>
-HTML
-          
-          echo "✅ Главная страница создана в стиле Obsidian Garden"
-
-      # 4. Деплой
-      - name: pages@v4
