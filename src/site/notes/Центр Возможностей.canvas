@@ -1,11 +1,19 @@
 {
 	"nodes":[
+		{"id":"3aabe42b1ec3806e","x":1800,"y":-792,"width":657,"height":512,"type":"group","label":"Группа web Day"},
+		{"id":"6bc4ad305d2f1362","x":1080,"y":-880,"width":566,"height":427,"type":"group","label":"Группа гит"},
 		{"id":"12c40b9962527583","type":"text","text":"# Центр","x":112,"y":201,"width":250,"height":60},
 		{"id":"d652cb310b336ba7","type":"text","text":" # Вверх","x":110,"y":-35,"width":250,"height":60},
 		{"id":"b3eb643cadd34fd2","type":"text","text":" # Ссноска с Вопросительным знаком\n![[Как быстро 💨 с]]\n","x":537,"y":144,"width":223,"height":316},
-		{"id":"0ddfa57d25707d43","x":400,"y":-700,"width":400,"height":400,"type":"file","file":"Новое кодовое пространство 🛰️ в гит.md"}
+		{"id":"0ddfa57d25707d43","type":"file","file":"Оно знает Всё.md","x":400,"y":-700,"width":400,"height":400},
+		{"id":"3fa08075f37163ee","x":946,"y":-120,"width":400,"height":400,"type":"file","file":"Оно знает Всё.md"},
+		{"id":"8badd01cc8668a05","x":1272,"y":-755,"width":250,"height":60,"type":"text","text":"Писец"},
+		{"id":"f356cd94c02e21d8","x":1920,"y":-647,"width":378,"height":167,"type":"text","text":"Мутко"}
 	],
 	"edges":[
-		{"id":"8065cfdc13f5ddb3","fromNode":"12c40b9962527583","fromSide":"top","toNode":"d652cb310b336ba7","toSide":"bottom"}
+		{"id":"8065cfdc13f5ddb3","fromNode":"12c40b9962527583","fromSide":"top","toNode":"d652cb310b336ba7","toSide":"bottom"},
+		{"id":"0996fbc988f4dd38","fromNode":"6bc4ad305d2f1362","fromSide":"right","toNode":"3aabe42b1ec3806e","toSide":"left"},
+		{"id":"a27897d27bae1c75","fromNode":"8badd01cc8668a05","fromSide":"right","toNode":"3aabe42b1ec3806e","toSide":"left"},
+		{"id":"fc25f7ef838fa99e","fromNode":"f356cd94c02e21d8","fromSide":"left","toNode":"8badd01cc8668a05","toSide":"top"}
 	]
 }
