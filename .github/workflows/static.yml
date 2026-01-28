@@ -4,9 +4,9 @@ on:
   push:
     branches: ["main"]
     paths:
-      - 'src/site/notes/**'      # Срабатывает при изменении заметок
-      - '.github/workflows/**'  # Или самого скрипта
-  workflow_dispatch:           # Позволяет запустить вручную
+      - 'src/site/notes/**'      # 小褉邪斜邪褌褘胁邪械褌 锌褉懈 懈蟹屑械薪械薪懈懈 蟹邪屑械褌芯泻
+      - '.github/workflows/**'  # 袠谢懈 褋邪屑芯谐芯 褋泻褉懈锌褌邪
+  workflow_dispatch:           # 袩芯蟹胁芯谢褟械褌 蟹邪锌褍褋褌懈褌褜 胁褉褍褔薪褍褞
 
 permissions:
   contents: read
@@ -31,27 +31,27 @@ jobs:
 
       - name: Scan and Generate File List
         run: |
-          echo "🔍 Начинаю системное сканирование файлов..."
+          echo "馃攳 袧邪褔懈薪邪褞 褋懈褋褌械屑薪芯械 褋泻邪薪懈褉芯胁邪薪懈械 褎邪泄谢芯胁..."
           cd src/site/notes/
           
-          # Создаем простой список имен файлов для JavaScript
-          # Исключаем служебные файлы, чтобы они не мозолили глаза
+          # 小芯蟹写邪械屑 锌褉芯褋褌芯泄 褋锌懈褋芯泻 懈屑械薪 褎邪泄谢芯胁 写谢褟 JavaScript
+          # 袠褋泻谢褞褔邪械屑 褋谢褍卸械斜薪褘械 褎邪泄谢褘, 褔褌芯斜褘 芯薪懈 薪械 屑芯蟹芯谢懈谢懈 谐谢邪蟹邪
           find . -type f ! -name "index.html" ! -name "files-list.txt" | sed 's|^\./||' | sort > files-list.txt
           
-          echo "📊 Найдено файлов: $(wc -l < files-list.txt)"
+          echo "馃搳 袧邪泄写械薪芯 褎邪泄谢芯胁: $(wc -l < files-list.txt)"
 
       - name: Build Index Page
         run: |
           cd src/site/notes
-          echo "🎨 Сборка динамического интерфейса через echo..."
+          echo "馃帹 小斜芯褉泻邪 写懈薪邪屑懈褔械褋泻芯谐芯 懈薪褌械褉褎械泄褋邪 褔械褉械蟹 echo..."
 
-          # --- HTML Структура ---
+          # --- HTML 小褌褉褍泻褌褍褉邪 ---
           echo '<!DOCTYPE html>' > index.html
           echo '<html lang="ru">' >> index.html
           echo '<head>' >> index.html
           echo '  <meta charset="UTF-8">' >> index.html
           echo '  <meta name="viewport" content="width=device-width, initial-scale=1.0">' >> index.html
-          echo '  <title>🌿 My Digital Garden</title>' >> index.html
+          echo '  <title>馃尶 My Digital Garden</title>' >> index.html
           echo '  <style>' >> index.html
           echo '    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: #0d1117; color: #c9d1d9; line-height: 1.6; }' >> index.html
           echo '    .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }' >> index.html
@@ -67,15 +67,15 @@ jobs:
           echo '</head>' >> index.html
           echo '<body>' >> index.html
           echo '  <div class="container">' >> index.html
-          echo '    <h1>🌿 Digital Garden</h1>' >> index.html
-          echo '    <input type="text" class="search-box" id="search" placeholder="🔍 Поиск по саду...">' >> index.html
-          echo '    <div id="garden-grid" class="grid"><p>Загрузка мыслей...</p></div>' >> index.html
+          echo '    <h1>馃尶 Digital Garden</h1>' >> index.html
+          echo '    <input type="text" class="search-box" id="search" placeholder="馃攳 袩芯懈褋泻 锌芯 褋邪写褍...">' >> index.html
+          echo '    <div id="garden-grid" class="grid"><p>袟邪谐褉褍蟹泻邪 屑褘褋谢械泄...</p></div>' >> index.html
           echo '    <footer>' >> index.html
-          echo '      <p>Обновлено: '$(date +'%d.%m.%Y %H:%M')' (Actions)</p>' >> index.html
+          echo '      <p>袨斜薪芯胁谢械薪芯: '$(date +'%d.%m.%Y %H:%M')' (Actions)</p>' >> index.html
           echo '    </footer>' >> index.html
           echo '  </div>' >> index.html
 
-          # --- JavaScript Логика ---
+          # --- JavaScript 袥芯谐懈泻邪 ---
           echo '  <script>' >> index.html
           echo '    async function init() {' >> index.html
           echo '      try {' >> index.html
@@ -89,7 +89,7 @@ jobs:
           echo '          render(files.filter(f => f.toLowerCase().includes(term)));' >> index.html
           echo '        };' >> index.html
           echo '      } catch (err) {' >> index.html
-          echo '        document.getElementById("garden-grid").innerHTML = "❌ Ошибка загрузки списка";' >> index.html
+          echo '        document.getElementById("garden-grid").innerHTML = "鉂� 袨褕懈斜泻邪 蟹邪谐褉褍蟹泻懈 褋锌懈褋泻邪";' >> index.html
           echo '      }' >> index.html
           echo '    }' >> index.html
           echo '    ' >> index.html
@@ -97,12 +97,12 @@ jobs:
           echo '      const grid = document.getElementById("garden-grid");' >> index.html
           echo '      grid.innerHTML = list.map(file => {' >> index.html
           echo '        const name = file.split("/").pop().replace(".md", "").replace(".html", "");' >> index.html
-          echo '        const folder = file.includes("/") ? file.substring(0, file.lastIndexOf("/")) : "Корень";' >> index.html
+          echo '        const folder = file.includes("/") ? file.substring(0, file.lastIndexOf("/")) : "袣芯褉械薪褜";' >> index.html
           echo '        return `<a href="${encodeURIComponent(file)}" class="card">' >> index.html
           echo '          <span class="card-title">${name}</span>' >> index.html
-          echo '          <span class="card-meta">📁 ${folder}</span>' >> index.html
+          echo '          <span class="card-meta">馃搧 ${folder}</span>' >> index.html
           echo '        </a>`;' >> index.html
-          echo '      }).join("") || "<p>Ничего не найдено</p>";' >> index.html
+          echo '      }).join("") || "<p>袧懈褔械谐芯 薪械 薪邪泄写械薪芯</p>";' >> index.html
           echo '    }' >> index.html
           echo '    init();' >> index.html
           echo '  </script>' >> index.html
