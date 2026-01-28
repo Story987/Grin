@@ -1,12 +1,12 @@
-name: Digital Garden with Obsidian Features
+name: Digital Garden - Dynamic Index
 
 on:
   push:
     branches: ["main"]
     paths:
-      - 'src/site/notes/**'  # 孝芯谢褜泻芯 锌褉懈 懈蟹屑械薪械薪懈懈 蟹邪屑械褌芯泻
-      - '.github/workflows/**'
-  workflow_dispatch:
+      - 'src/site/notes/**'      # Срабатывает при изменении заметок
+      - '.github/workflows/**'  # Или самого скрипта
+  workflow_dispatch:           # Позволяет запустить вручную
 
 permissions:
   contents: read
@@ -15,10 +15,10 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: true  # 袧芯胁褘泄 写械锌谢芯泄 芯褌屑械薪褟械褌 褋褌邪褉褘泄
+  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -29,289 +29,91 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 1. 小泻邪褔懈胁邪械屑 谐芯褌芯胁褘械 褕邪斜谢芯薪褘 懈蟹 obsidian-digital-garden
-      - name: Download templates from obsidian-garden
+      - name: Scan and Generate File List
         run: |
-          echo "馃摜 袟邪谐褉褍卸邪褞 褕邪斜谢芯薪褘..."
-          mkdir -p templates
+          echo "🔍 Начинаю системное сканирование файлов..."
+          cd src/site/notes/
           
-          # 袨褋薪芯胁薪芯泄 CSS (屑芯卸薪芯 懈褋锌芯谢褜蟹芯胁邪褌褜 懈谢懈 邪写邪锌褌懈褉芯胁邪褌褜)
-          curl -s -o templates/style.css \
-            https://raw.githubusercontent.com/oleeskild/obsidian-digital-garden/main/src/site/assets/css/style.css
+          # Создаем простой список имен файлов для JavaScript
+          # Исключаем служебные файлы, чтобы они не мозолили глаза
+          find . -type f ! -name "index.html" ! -name "files-list.txt" | sed 's|^\./||' | sort > files-list.txt
           
-          # 袠泻芯薪泻懈 懈 褕褉懈褎褌褘
-          mkdir -p templates/assets
-          curl -s -o templates/assets/favicon.ico \
-            https://github.com/oleeskild/obsidian-digital-garden/raw/main/src/site/assets/favicon.ico
-          
-          echo "鉁� 楔邪斜谢芯薪褘 蟹邪谐褉褍卸械薪褘"
+          echo "📊 Найдено файлов: $(wc -l < files-list.txt)"
 
-      # 2. 袗薪邪谢懈蟹懈褉褍械屑 褋褌褉褍泻褌褍褉褍 泻邪泻 胁 obsidian-garden (袘袝袟 HEREDOC)
-      - name: Analyze notes structure
-        id: scan
+      - name: Build Index Page
         run: |
           cd src/site/notes
-          echo "馃攳 袗薪邪谢懈蟹懈褉褍褞 褋褌褉褍泻褌褍褉褍 蟹邪屑械褌芯泻..."
-          
-          # 袧邪褔懈薪邪械屑 褋芯蟹写邪薪懈械 JSON 褎邪泄谢邪
-          echo '{' > notes-structure.json
-          echo '  "generated": "'$(date)'",' >> notes-structure.json
-          echo '  "notes": [' >> notes-structure.json
-          
-          # 袧邪褏芯写懈屑 胁褋械 markdown/html 褎邪泄谢褘
-          file_count=0
-          first=true
-          find . -name "*.md" -o -name "*.html" -o -name "*.htm" | while read file; do
-            if [ "$first" = true ]; then
-              first=false
-            else
-              echo ',' >> notes-structure.json
-            fi
-            
-            filename=$(basename "$file")
-            path=$(dirname "$file" | sed 's|^\./||')
-            size=$(stat -c%s "$file" 2>/dev/null || wc -c < "$file")
-            
-            # 袠蟹胁谢械泻邪械屑 蟹邪谐芯谢芯胁芯泻 (锌械褉胁邪褟 褋褌褉芯泻邪 写谢褟 .md)
-            if [[ "$file" == *.md ]]; then
-              title=$(head -1 "$file" | sed 's/^# //')
-            else
-              title=$(echo "$filename" | sed 's/\.[^.]*$//')
-            fi
-            
-            # 袝褋谢懈 title 锌褍褋褌芯泄, 懈褋锌芯谢褜蟹褍械屑 filename
-            if [ -z "$title" ]; then
-              title="$filename"
-            fi
-            
-            file_type=$(echo "$filename" | grep -o '\.[^.]*$')
-            
-            echo '    {' >> notes-structure.json
-            echo '      "file": "'$filename'",' >> notes-structure.json
-            echo '      "path": "'$path'",' >> notes-structure.json
-            echo '      "title": "'$title'",' >> notes-structure.json
-            echo '      "size": '$size',' >> notes-structure.json
-            echo '      "type": "'$file_type'"' >> notes-structure.json
-            echo '    }' >> notes-structure.json
-            
-            file_count=$((file_count + 1))
-          done
-          
-          echo '  ]' >> notes-structure.json
-          echo '}' >> notes-structure.json
-          
-          echo "馃搳 袧邪泄写械薪芯 蟹邪屑械褌芯泻: $file_count"
+          echo "🎨 Сборка динамического интерфейса через echo..."
 
-      # 3. 小芯蟹写邪褢屑 谐谢邪胁薪褍褞 褋褌褉邪薪懈褑褍 胁 褋褌懈谢械 obsidian-garden (袘袝袟 HEREDOC)
-      - name: Create obsidian-style index
-        run: |
-          cd src/site/notes
-          echo "馃帹 小芯蟹写邪褞 褋褌褉邪薪懈褑褍 胁 褋褌懈谢械 Obsidian Garden..."
-          
-          # 袠褋锌芯谢褜蟹褍械屑 CSS 懈蟹 obsidian-garden
-          cp ../../templates/style.css . 2>/dev/null || echo "袠褋锌芯谢褜蟹褍褞 褋褌邪薪写邪褉褌薪褘泄 CSS"
-          
-          # 袨褋薪芯胁薪邪褟 褋褌褉邪薪懈褑邪 - 褋芯蟹写邪械屑 褔械褉械蟹 echo 锌芯褋褌褉芯褔薪芯
+          # --- HTML Структура ---
           echo '<!DOCTYPE html>' > index.html
           echo '<html lang="ru">' >> index.html
           echo '<head>' >> index.html
-          echo '    <meta charset="UTF-8">' >> index.html
-          echo '    <meta name="viewport" content="width=device-width, initial-scale=1.0">' >> index.html
-          echo '    <title>馃尶 Digital Garden</title>' >> index.html
-          echo '    <link rel="stylesheet" href="style.css">' >> index.html
-          echo '    <style>' >> index.html
-          echo '        /* 袛芯锌芯谢薪懈褌械谢褜薪褘械 褋褌懈谢懈 懈蟹 obsidian-garden */' >> index.html
-          echo '        :root {' >> index.html
-          echo '            --primary-color: #4a90e2;' >> index.html
-          echo '            --secondary-color: #7b68ee;' >> index.html
-          echo '            --bg-color: #0f0f1a;' >> index.html
-          echo '            --text-color: #e0e0e0;' >> index.html
-          echo '            --card-bg: #1a1a2e;' >> index.html
-          echo '            --border-color: #2a2a3e;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        body {' >> index.html
-          echo '            background: var(--bg-color);' >> index.html
-          echo '            color: var(--text-color);' >> index.html
-          echo '            font-family: "Inter", -apple-system, sans-serif;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .garden-header {' >> index.html
-          echo '            text-align: center;' >> index.html
-          echo '            padding: 3rem 1rem;' >> index.html
-          echo '            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);' >> index.html
-          echo '            border-bottom: 1px solid var(--border-color);' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .notes-grid {' >> index.html
-          echo '            display: grid;' >> index.html
-          echo '            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));' >> index.html
-          echo '            gap: 1.5rem;' >> index.html
-          echo '            padding: 2rem;' >> index.html
-          echo '            max-width: 1400px;' >> index.html
-          echo '            margin: 0 auto;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .note-card {' >> index.html
-          echo '            background: var(--card-bg);' >> index.html
-          echo '            border: 1px solid var(--border-color);' >> index.html
-          echo '            border-radius: 12px;' >> index.html
-          echo '            padding: 1.5rem;' >> index.html
-          echo '            transition: all 0.3s ease;' >> index.html
-          echo '            text-decoration: none;' >> index.html
-          echo '            color: inherit;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .note-card:hover {' >> index.html
-          echo '            transform: translateY(-5px);' >> index.html
-          echo '            border-color: var(--primary-color);' >> index.html
-          echo '            box-shadow: 0 10px 30px rgba(74, 144, 226, 0.2);' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .note-tags {' >> index.html
-          echo '            display: flex;' >> index.html
-          echo '            flex-wrap: wrap;' >> index.html
-          echo '            gap: 0.5rem;' >> index.html
-          echo '            margin-top: 1rem;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .tag {' >> index.html
-          echo '            background: rgba(74, 144, 226, 0.1);' >> index.html
-          echo '            color: var(--primary-color);' >> index.html
-          echo '            padding: 0.3rem 0.8rem;' >> index.html
-          echo '            border-radius: 20px;' >> index.html
-          echo '            font-size: 0.85rem;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .search-box {' >> index.html
-          echo '            max-width: 600px;' >> index.html
-          echo '            margin: 2rem auto;' >> index.html
-          echo '            padding: 0 2rem;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        #search-input {' >> index.html
-          echo '            width: 100%;' >> index.html
-          echo '            padding: 1rem 1.5rem;' >> index.html
-          echo '            background: var(--card-bg);' >> index.html
-          echo '            border: 1px solid var(--border-color);' >> index.html
-          echo '            border-radius: 50px;' >> index.html
-          echo '            color: var(--text-color);' >> index.html
-          echo '            font-size: 1rem;' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        .backlinks {' >> index.html
-          echo '            background: var(--card-bg);' >> index.html
-          echo '            border-radius: 10px;' >> index.html
-          echo '            padding: 1.5rem;' >> index.html
-          echo '            margin: 2rem auto;' >> index.html
-          echo '            max-width: 800px;' >> index.html
-          echo '        }' >> index.html
-          echo '    </style>' >> index.html
+          echo '  <meta charset="UTF-8">' >> index.html
+          echo '  <meta name="viewport" content="width=device-width, initial-scale=1.0">' >> index.html
+          echo '  <title>🌿 My Digital Garden</title>' >> index.html
+          echo '  <style>' >> index.html
+          echo '    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: #0d1117; color: #c9d1d9; line-height: 1.6; }' >> index.html
+          echo '    .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }' >> index.html
+          echo '    h1 { color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 10px; font-size: 2.5rem; }' >> index.html
+          echo '    .search-box { width: 100%; padding: 12px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: white; margin-bottom: 20px; font-size: 1rem; }' >> index.html
+          echo '    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }' >> index.html
+          echo '    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 15px; text-decoration: none; color: inherit; transition: 0.2s; }' >> index.html
+          echo '    .card:hover { border-color: #58a6ff; background: #1c2128; transform: translateY(-2px); }' >> index.html
+          echo '    .card-title { color: #58a6ff; font-weight: bold; margin-bottom: 5px; display: block; overflow: hidden; text-overflow: ellipsis; }' >> index.html
+          echo '    .card-meta { font-size: 0.8rem; color: #8b949e; }' >> index.html
+          echo '    footer { margin-top: 50px; text-align: center; color: #8b949e; font-size: 0.9rem; }' >> index.html
+          echo '  </style>' >> index.html
           echo '</head>' >> index.html
           echo '<body>' >> index.html
-          echo '    <div class="garden-header">' >> index.html
-          echo '        <h1 style="font-size: 3rem; margin-bottom: 1rem;">馃尶 Digital Garden</h1>' >> index.html
-          echo '        <p style="color: #aaa; max-width: 600px; margin: 0 auto;">' >> index.html
-          echo '            袣芯谢谢械泻褑懈褟 胁蟹邪懈屑芯褋胁褟蟹邪薪薪褘褏 屑褘褋谢械泄 懈 蟹邪屑械褌芯泻' >> index.html
-          echo '        </p>' >> index.html
-          echo '    </div>' >> index.html
-          echo '' >> index.html
-          echo '    <div class="search-box">' >> index.html
-          echo '        <input type="text" id="search-input" placeholder="馃攳 袩芯懈褋泻 锌芯 蟹邪屑械褌泻邪屑...">' >> index.html
-          echo '    </div>' >> index.html
-          echo '' >> index.html
-          echo '    <div class="notes-grid" id="notes-container">' >> index.html
-          echo '        <!-- 袟邪屑械褌泻懈 斜褍写褍褌 蟹邪谐褉褍卸械薪褘 JavaScript -->' >> index.html
-          echo '        <p>袟邪谐褉褍蟹泻邪 褋锌懈褋泻邪 褎邪泄谢芯胁...</p>' >> index.html
-          echo '    </div>' >> index.html
-          echo '' >> index.html
-          echo '    <div class="backlinks">' >> index.html
-          echo '        <h3>馃摎 袙褋械 褎邪泄谢褘</h3>' >> index.html
-          echo '        <div id="all-files"></div>' >> index.html
-          echo '    </div>' >> index.html
-          echo '' >> index.html
-          echo '    <script>' >> index.html
-          echo '        // 袟邪谐褉褍蟹泻邪 褋褌褉褍泻褌褍褉褘 蟹邪屑械褌芯泻' >> index.html
-          echo '        async function loadNotes() {' >> index.html
-          echo '            try {' >> index.html
-          echo '                const response = await fetch("notes-structure.json");' >> index.html
-          echo '                const data = await response.json();' >> index.html
-          echo '                renderNotes(data.notes);' >> index.html
-          echo '            } catch (error) {' >> index.html
-          echo '                document.getElementById("notes-container").innerHTML = ' >> index.html
-          echo '                    `<div class="note-card"><p>袨褕懈斜泻邪 蟹邪谐褉褍蟹泻懈: ${error.message}</p></div>`;' >> index.html
-          echo '            }' >> index.html
-          echo '        }' >> index.html
-          echo '' >> index.html
-          echo '        function renderNotes(notes) {' >> index.html
-          echo '            const container = document.getElementById("notes-container");' >> index.html
-          echo '            const allFiles = document.getElementById("all-files");' >> index.html
-          echo '' >> index.html
-          echo '            let notesHtml = "";' >> index.html
-          echo '            let filesHtml = "<div style=\\"display: flex; flex-wrap: wrap; gap: 0.5rem;\\">";' >> index.html
-          echo '' >> index.html
-          echo '            notes.forEach(note => {' >> index.html
-          echo '                // 袣邪褉褌芯褔泻邪 蟹邪屑械褌泻懈' >> index.html
-          echo '                notesHtml += `' >> index.html
-          echo '                    <a href="${encodeURIComponent(note.path)}/${encodeURIComponent(note.file)}" ' >> index.html
-          echo '                       class="note-card">' >> index.html
-          echo '                        <h3>${note.title}</h3>' >> index.html
-          echo '                        <p style="color: #aaa; font-size: 0.9rem; margin-top: 0.5rem;">' >> index.html
-          echo '                            ${note.path ? "馃搧 " + note.path : "馃搫"} 鈥� ' >> index.html
-          echo '                            ${Math.ceil(note.size / 1024)} KB' >> index.html
-          echo '                        </p>' >> index.html
-          echo '                        <div class="note-tags">' >> index.html
-          echo '                            <span class="tag">${note.type.replace(".", "")}</span>' >> index.html
-          echo '                            ${note.path ? `<span class="tag">${note.path.split("/")[0]}</span>` : ""}' >> index.html
-          echo '                        </div>' >> index.html
-          echo '                    </a>' >> index.html
-          echo '                `;' >> index.html
-          echo '                ' >> index.html
-          echo '                // 袩褉芯褋褌芯泄 褋锌懈褋芯泻 胁褋械褏 褎邪泄谢芯胁' >> index.html
-          echo '                filesHtml += `' >> index.html
-          echo '                    <a href="${encodeURIComponent(note.path)}/${encodeURIComponent(note.file)}"' >> index.html
-          echo '                       style="display: inline-block; padding: 0.3rem 0.8rem; ' >> index.html
-          echo '                              background: #2a2a3e; border-radius: 6px; ' >> index.html
-          echo '                              color: #ccc; text-decoration: none; font-size: 0.9rem;">' >> index.html
-          echo '                        ${note.file}' >> index.html
-          echo '                    </a>' >> index.html
-          echo '                `;' >> index.html
-          echo '            });' >> index.html
-          echo '            ' >> index.html
-          echo '            filesHtml += "</div>";' >> index.html
-          echo '            ' >> index.html
-          echo '            container.innerHTML = notesHtml;' >> index.html
-          echo '            allFiles.innerHTML = filesHtml;' >> index.html
-          echo '            ' >> index.html
-          echo '            // 袩芯懈褋泻' >> index.html
-          echo '            document.getElementById("search-input").addEventListener("input", function(e) {' >> index.html
-          echo '                const term = e.target.value.toLowerCase();' >> index.html
-          echo '                const cards = document.querySelectorAll(".note-card");' >> index.html
-          echo '                ' >> index.html
-          echo '                cards.forEach(card => {' >> index.html
-          echo '                    const title = card.querySelector("h3").textContent.toLowerCase();' >> index.html
-          echo '                    const visible = title.includes(term);' >> index.html
-          echo '                    card.style.display = visible ? "block" : "none";' >> index.html
-          echo '                });' >> index.html
-          echo '            });' >> index.html
-          echo '        }' >> index.html
+          echo '  <div class="container">' >> index.html
+          echo '    <h1>🌿 Digital Garden</h1>' >> index.html
+          echo '    <input type="text" class="search-box" id="search" placeholder="🔍 Поиск по саду...">' >> index.html
+          echo '    <div id="garden-grid" class="grid"><p>Загрузка мыслей...</p></div>' >> index.html
+          echo '    <footer>' >> index.html
+          echo '      <p>Обновлено: '$(date +'%d.%m.%Y %H:%M')' (Actions)</p>' >> index.html
+          echo '    </footer>' >> index.html
+          echo '  </div>' >> index.html
+
+          # --- JavaScript Логика ---
+          echo '  <script>' >> index.html
+          echo '    async function init() {' >> index.html
+          echo '      try {' >> index.html
+          echo '        const resp = await fetch("files-list.txt");' >> index.html
+          echo '        const text = await resp.text();' >> index.html
+          echo '        const files = text.split("\\n").filter(f => f.trim());' >> index.html
+          echo '        render(files);' >> index.html
           echo '        ' >> index.html
-          echo '        document.addEventListener("DOMContentLoaded", loadNotes);' >> index.html
-          echo '    </script>' >> index.html
+          echo '        document.getElementById("search").oninput = (e) => {' >> index.html
+          echo '          const term = e.target.value.toLowerCase();' >> index.html
+          echo '          render(files.filter(f => f.toLowerCase().includes(term)));' >> index.html
+          echo '        };' >> index.html
+          echo '      } catch (err) {' >> index.html
+          echo '        document.getElementById("garden-grid").innerHTML = "❌ Ошибка загрузки списка";' >> index.html
+          echo '      }' >> index.html
+          echo '    }' >> index.html
+          echo '    ' >> index.html
+          echo '    function render(list) {' >> index.html
+          echo '      const grid = document.getElementById("garden-grid");' >> index.html
+          echo '      grid.innerHTML = list.map(file => {' >> index.html
+          echo '        const name = file.split("/").pop().replace(".md", "").replace(".html", "");' >> index.html
+          echo '        const folder = file.includes("/") ? file.substring(0, file.lastIndexOf("/")) : "Корень";' >> index.html
+          echo '        return `<a href="${encodeURIComponent(file)}" class="card">' >> index.html
+          echo '          <span class="card-title">${name}</span>' >> index.html
+          echo '          <span class="card-meta">📁 ${folder}</span>' >> index.html
+          echo '        </a>`;' >> index.html
+          echo '      }).join("") || "<p>Ничего не найдено</p>";' >> index.html
+          echo '    }' >> index.html
+          echo '    init();' >> index.html
+          echo '  </script>' >> index.html
           echo '</body>' >> index.html
           echo '</html>' >> index.html
-          
-          echo "鉁� 袚谢邪胁薪邪褟 褋褌褉邪薪懈褑邪 褋芯蟹写邪薪邪 胁 褋褌懈谢械 Obsidian Garden"
 
-      # 4. 袛械锌谢芯泄
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        
-      - name: Upload artifact
+      - name: Upload to GitHub Pages
         uses: actions/upload-pages-artifact@v3
         with:
           path: 'src/site/notes/'
-        
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
