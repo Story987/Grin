@@ -1,4 +1,4 @@
-name: Digital Garden - Full Auto Index
+8name: Digital Garden - Full Auto Index
 
 on:
   push:
@@ -99,4 +99,4 @@ jobs:
 
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4 
+        uses: actions/deploy-pages@v4
