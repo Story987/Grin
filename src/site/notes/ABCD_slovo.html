@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор стилизованного текста</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            background: #0b0e14;
+            color: #e4e6eb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 20px;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #1a1f2a;
+            padding: 30px 25px;
+            border-radius: 24px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 500;
+            margin: 0 0 6px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sub {
+            opacity: 0.6;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 110px;
+            background: #0e121c;
+            border: 1px solid #2e3748;
+            border-radius: 14px;
+            color: #e4e6eb;
+            font-size: 18px;
+            padding: 14px 18px;
+            resize: vertical;
+            outline: none;
+            transition: 0.2s;
+        }
+        textarea:focus {
+            border-color: #5f7bff;
+            box-shadow: 0 0 0 3px rgba(95, 123, 255, 0.2);
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 20px;
+            margin: 18px 0 14px 0;
+            align-items: center;
+        }
+        .controls label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        .controls input[type="radio"] {
+            accent-color: #5f7bff;
+            width: 17px;
+            height: 17px;
+            cursor: pointer;
+        }
+        .btn {
+            background: #5f7bff;
+            border: none;
+            color: #fff;
+            font-weight: 500;
+            font-size: 16px;
+            padding: 10px 28px;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-left: auto;
+        }
+        .btn:hover {
+            background: #4a66e6;
+            transform: scale(1.02);
+        }
+        .btn:active {
+            transform: scale(0.97);
+        }
+        .output-area {
+            background: #0e121c;
+            border: 1px solid #2e3748;
+            border-radius: 14px;
+            padding: 18px 20px;
+            min-height: 80px;
+            font-size: 24px;
+            line-height: 1.6;
+            word-break: break-word;
+            white-space: pre-wrap;
+            margin-top: 10px;
+            transition: 0.2s;
+            color: #f0f2f5;
+            letter-spacing: 0.3px;
+        }
+        .output-area:empty::before {
+            content: "Здесь появится стилизованный текст";
+            color: #5b657a;
+            font-size: 18px;
+            opacity: 0.6;
+        }
+        .legend {
+            margin-top: 24px;
+            background: #121724;
+            border-radius: 14px;
+            padding: 16px 18px;
+            font-size: 14px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .legend summary {
+            cursor: pointer;
+            font-weight: 500;
+            color: #aab3cc;
+        }
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 6px 12px;
+            margin-top: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 15px;
+        }
+        .legend-item .rus {
+            font-weight: 500;
+            color: #c8cee0;
+            width: 20px;
+        }
+        .legend-item .sym {
+            color: #5f7bff;
+            font-size: 18px;
+        }
+        .legend-item .sym-alt {
+            color: #7a87a8;
+            font-size: 16px;
+            margin-left: 2px;
+        }
+        .copy-btn {
+            background: transparent;
+            border: 1px solid #3a455a;
+            color: #bcc4db;
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-top: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .copy-btn:hover {
+            background: #2a3245;
+            border-color: #5f7bff;
+            color: #fff;
+        }
+        .footer {
+            margin-top: 16px;
+            font-size: 13px;
+            opacity: 0.5;
+            text-align: center;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1f2a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #3a455a;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>✧ Стилизатор текста ✧</h1>
+    <div class="sub">Наш алфавит — иероглифы, руны, латиница и греческие</div>
+
+    <textarea id="inputText" placeholder="Введите русский текст…">Я люблю свой алфавит</textarea>
+
+    <div class="controls">
+        <label><input type="radio" name="mode" value="main" checked> Основные</label>
+        <label><input type="radio" name="mode" value="random"> Случайные</label>
+        <label><input type="radio" name="mode" value="mix"> Все варианты</label>
+        <button class="btn" id="convertBtn">Преобразовать</button>
+    </div>
+
+    <div class="output-area" id="output"></div>
+    <button class="copy-btn" id="copyBtn">📋 Копировать</button>
+
+    <details class="legend">
+        <summary>📖 Все утверждённые символы</summary>
+        <div class="legend-grid" id="legendGrid"></div>
+    </details>
+    <div class="footer">Основной вариант — первый в списке. Случайный режим выбирает случайно среди всех.</div>
+</div>
+
+<script>
+    // ======= НАШ АЛФАВИТ (из YAML) =======
+    const alphabet = {
+        'А': ['@', '▲', 'α'],
+        'Б': ['Ҕ', '万'],
+        'В': ['Ƀ'],
+        'Г': ['厂', '「', '广'],
+        'Д': ['马', '金'],
+        'Е': ['e', 'Ɛ', '巴'],
+        'Ё': ['ë'],
+        'Ж': ['米', '}|{'],
+        'З': ['ℨ'],
+        'И': ['u'],
+        'Й': ['u̇'],
+        'К': ['片', '长'],
+        'Л': ['Λ', '凡', '人'],
+        'М': ['ᛗ', '爪'],
+        'Н': ['ᚺ'],
+        'О': ['✪'],
+        'П': ['刀', 'π'],
+        'Р': ['尺'],
+        'С': ['匚', '亡'],
+        'Т': ['丁', '₮'],
+        'У': ['Y'],
+        'Ф': ['中'],
+        'Х': ['χ', '义'],
+        'Ц': ['Ҵ'],
+        'Ч': ['Ҹ'],
+        'Ш': ['山'],
+        'Щ': ['山一'],
+        'Ъ': ['Ƅ'],
+        'Ы': ['b|'],
+        'Ь': ['b'],
+        'Э': ['϶'],
+        'Ю': ['Ꙕ'],
+        'Я': ['呀', 'ᛟ']
+    };
+
+    const punctuation = {
+        ' ': ' ',
+        '.': '.',
+        ',': ',',
+        '!': '!',
+        '?': '?',
+        '-': '-',
+        '—': '—'
+    };
+
+    // ======= Вспомогательные функции =======
+    function getVariants(letter) {
+        return alphabet[letter] || [letter];
+    }
+
+    function randomItem(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function stylize(text, mode) {
+        let result = '';
+        for (let char of text) {
+            const upper = char.toUpperCase();
+            const isLower = char !== upper;
+            const variants = getVariants(upper);
+            let selected;
+            if (mode === 'main') {
+                selected = variants[0];
+            } else if (mode === 'random') {
+                selected = randomItem(variants);
+            } else if (mode === 'mix') {
+                // "Все варианты" — используем случайный, но стараемся разнообразить
+                selected = randomItem(variants);
+            }
+            // Если буквы нет в алфавите — оставляем как есть
+            if (!selected) selected = char;
+            // Учитываем регистр: для строчных букв пытаемся найти строчный вариант, но если нет — оставляем как есть
+            // В нашем алфавите все символы регистронезависимы, поэтому просто берём выбранный.
+            result += selected;
+        }
+        return result;
+    }
+
+    // ======= Отрисовка легенды =======
+    function renderLegend() {
+        const grid = document.getElementById('legendGrid');
+        const sorted = Object.keys(alphabet).sort();
+        grid.innerHTML = '';
+        for (let key of sorted) {
+            const div = document.createElement('div');
+            div.className = 'legend-item';
+            const rus = document.createElement('span');
+            rus.className = 'rus';
+            rus.textContent = key;
+            const sym = document.createElement('span');
+            sym.className = 'sym';
+            sym.textContent = alphabet[key][0];
+            const alt = document.createElement('span');
+            alt.className = 'sym-alt';
+            if (alphabet[key].length > 1) {
+                alt.textContent = ' (' + alphabet[key].slice(1).join(', ') + ')';
+            } else {
+                alt.textContent = '';
+            }
+            div.appendChild(rus);
+            div.appendChild(sym);
+            div.appendChild(alt);
+            grid.appendChild(div);
+        }
+    }
+
+    // ======= Основное действие =======
+    function convert() {
+        const input = document.getElementById('inputText');
+        const output = document.getElementById('output');
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        const text = input.value;
+        const styled = stylize(text, mode);
+        output.textContent = styled;
+    }
+
+    // ======= Копирование =======
+    document.getElementById('copyBtn').addEventListener('click', function() {
+        const output = document.getElementById('output');
+        const text = output.textContent;
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = this;
+            const orig = btn.textContent;
+            btn.textContent = '✅ Скопировано!';
+            setTimeout(() => { btn.textContent = orig; }, 1800);
+        }).catch(() => {
+            alert('Не удалось скопировать. Выделите текст вручную.');
+        });
+    });
+
+    // ======= События =======
+    document.getElementById('convertBtn').addEventListener('click', convert);
+    document.getElementById('inputText').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            convert();
+        }
+    });
+
+    // Загружаем легенду
+    renderLegend();
+
+    // Автоматическое преобразование при загрузке
+    window.addEventListener('DOMContentLoaded', () => {
+        convert();
+    });
+</script>
+</body>
+</html>
