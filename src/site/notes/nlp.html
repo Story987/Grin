@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>НЛП-Навигатор</title>
+  <style>
+    /* === БАЗА === */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      background: #f6f4f0;
+      color: #1e1e2a;
+      padding: 0 0 80px 0;
+      min-height: 100vh;
+      transition: background 0.3s, color 0.3s;
+    }
+    body.dark {
+      background: #1a1a24;
+      color: #e8e6e0;
+    }
+    .container { max-width: 600px; margin: 0 auto; padding: 16px; }
+
+    /* === ТЕМНАЯ ТЕМА === */
+    .theme-toggle {
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      background: rgba(0,0,0,0.06);
+      border: none;
+      border-radius: 30px;
+      padding: 8px 16px;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 100;
+      backdrop-filter: blur(4px);
+    }
+    body.dark .theme-toggle { background: rgba(255,255,255,0.08); }
+
+    /* === КАРТОЧКИ === */
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+      border-left: 5px solid #2c3e50;
+      transition: 0.2s;
+      cursor: pointer;
+    }
+    body.dark .card {
+      background: #262633;
+      border-left-color: #5a7a9a;
+    }
+    .card:active { transform: scale(0.98); }
+    .card h3 { font-size: 18px; margin-bottom: 4px; }
+    .card .badges { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+    .badge {
+      font-size: 11px;
+      padding: 2px 12px;
+      border-radius: 20px;
+      background: #eaeef2;
+      color: #1e1e2a;
+    }
+    body.dark .badge { background: #3a3a4a; color: #ddd; }
+    .badge.time-past { background: #d5e8d5; }
+    .badge.time-present { background: #d5e0f0; }
+    .badge.time-future { background: #f0e6d5; }
+    .badge.time-transcend { background: #e8d5f0; }
+    .badge.purpose-reinforce { background: #f0d5d5; }
+    .badge.purpose-weaken { background: #d5f0e8; }
+    .badge.purpose-switch { background: #d5d5f0; }
+
+    /* === ФИЛЬТРЫ === */
+    .filter-group { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 16px; }
+    .filter-btn {
+      padding: 6px 16px;
+      border-radius: 24px;
+      border: 1px solid #ccc;
+      background: #fff;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    body.dark .filter-btn {
+      background: #2a2a3a;
+      border-color: #444;
+      color: #ddd;
+    }
+    .filter-btn.active {
+      background: #1e2a3a;
+      color: #fff;
+      border-color: #1e2a3a;
+    }
+    body.dark .filter-btn.active {
+      background: #5a7a9a;
+      border-color: #5a7a9a;
+    }
+
+    /* === СТРАНИЦЫ === */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* === ДЕТАЛЬНАЯ СТРАНИЦА ФОКУСА === */
+    .focus-detail { padding: 0 0 20px; }
+    .focus-detail .back-btn {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #2c3e50;
+      cursor: pointer;
+      padding: 8px 0;
+      margin-bottom: 12px;
+    }
+    body.dark .focus-detail .back-btn { color: #aab; }
+    .focus-detail .block {
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    body.dark .focus-detail .block { background: #262633; }
+    .focus-detail .block h4 { font-size: 16px; margin-bottom: 6px; }
+    .focus-detail .block ul, .focus-detail .block p { font-size: 14px; line-height: 1.5; }
+    .focus-detail .block ul { padding-left: 20px; }
+    .focus-detail .example-box {
+      background: #f4f2ef;
+      padding: 12px;
+      border-radius: 12px;
+      margin: 8px 0;
+      font-style: italic;
+      font-size: 14px;
+    }
+    body.dark .focus-detail .example-box { background: #2e2e3e; }
+
+    /* === НИЖНЕЕ МЕНЮ === */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-around;
+      background: #ffffff;
+      border-top: 1px solid #ddd;
+      padding: 6px 0 10px;
+      z-index: 99;
+      backdrop-filter: blur(8px);
+    }
+    body.dark .bottom-nav {
+      background: #1e1e2a;
+      border-top-color: #333;
+    }
+    .bottom-nav button {
+      background: none;
+      border: none;
+      font-size: 12px;
+      text-align: center;
+      color: #666;
+      padding: 4px 8px;
+      cursor: pointer;
+      transition: 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      min-width: 50px;
+    }
+    body.dark .bottom-nav button { color: #999; }
+    .bottom-nav button .icon { font-size: 24px; line-height: 1; }
+    .bottom-nav button.active { color: #1e2a3a; font-weight: 600; }
+    body.dark .bottom-nav button.active { color: #8ab4d8; }
+
+    /* === ТРЕНИРОВКА === */
+    .quiz-option {
+      display: block;
+      width: 100%;
+      padding: 12px 16px;
+      margin: 6px 0;
+      border-radius: 12px;
+      border: 2px solid #ddd;
+      background: #fff;
+      text-align: left;
+      font-size: 15px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    body.dark .quiz-option {
+      background: #262633;
+      border-color: #444;
+      color: #ddd;
+    }
+    .quiz-option.correct { border-color: #2e8b57; background: #e6f5ed; }
+    .quiz-option.wrong { border-color: #c0392b; background: #f5e6e6; }
+    body.dark .quiz-option.correct { border-color: #4caf84; background: #1e3a2e; }
+    body.dark .quiz-option.wrong { border-color: #e74c3c; background: #3a1e1e; }
+    .quiz-feedback {
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    .quiz-feedback.correct { background: #e6f5ed; color: #1e4a2e; }
+    .quiz-feedback.wrong { background: #f5e6e6; color: #5a1e1e; }
+    body.dark .quiz-feedback.correct { background: #1a2e22; color: #8ac4a0; }
+    body.dark .quiz-feedback.wrong { background: #2e1a1a; color: #e68a7a; }
+
+    /* === ХИРУРГИЯ === */
+    .surgery-input {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 2px solid #ddd;
+      font-size: 16px;
+      background: #fff;
+      color: #1e1e2a;
+    }
+    body.dark .surgery-input { background: #262633; border-color: #444; color: #e8e6e0; }
+    .surgery-result {
+      background: #f0f4f8;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 12px 0;
+      font-size: 15px;
+    }
+    body.dark .surgery-result { background: #2a2a3a; }
+    .surgery-parts { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+    .surgery-part {
+      background: #eaeef2;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    body.dark .surgery-part { background: #3a3a4a; color: #ddd; }
+    .surgery-part select {
+      background: transparent;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e2a3a;
+      outline: none;
+    }
+    body.dark .surgery-part select { color: #8ab4d8; }
+
+    /* === ДНЕВНИК === */
+    .diary-entry {
+      background: #fff;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      border-left: 4px solid #2c3e50;
+    }
+    body.dark .diary-entry { background: #262633; }
+    .diary-entry .date { font-size: 12px; color: #888; }
+    .diary-entry .focus-name { font-weight: 600; font-size: 16px; }
+    .diary-entry .text { font-size: 14px; margin-top: 4px; }
+    .diary-entry .delete-btn {
+      background: none;
+      border: none;
+      color: #c0392b;
+      font-size: 14px;
+      cursor: pointer;
+      float: right;
+    }
+
+    /* === ПРОЧЕЕ === */
+    .mt-12 { margin-top: 12px; }
+    .mb-12 { margin-bottom: 12px; }
+    .text-center { text-align: center; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; }
+    .btn {
+      background: #1e2a3a;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    body.dark .btn { background: #3a5a7a; }
+    .btn:active { transform: scale(0.96); }
+    .btn-secondary {
+      background: #eaeef2;
+      color: #1e1e2a;
+    }
+    body.dark .btn-secondary { background: #3a3a4a; color: #ddd; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<button class="theme-toggle" id="themeToggle">🌙</button>
+
+<div class="container" id="app">
+
+  <!-- ===== ДАШБОРД ===== -->
+  <div class="page active" id="page-dashboard">
+    <h1>🧠 НЛП-Навигатор</h1>
+    <p style="color: #888; margin-bottom: 8px;">Учебный портал по фокусам языка</p>
+
+    <div id="progressBlock" style="background: #eaeef2; border-radius: 14px; padding: 12px 16px; margin: 12px 0;">
+      <span id="progressText">Изучено: 0 из 14</span>
+      <div style="background: #ccc; height: 6px; border-radius: 6px; margin-top: 6px; overflow: hidden;">
+        <div id="progressBar" style="background: #2c3e50; height: 100%; width: 0%; transition: width 0.3s;"></div>
+      </div>
+    </div>
+
+    <div class="card" id="focusOfDay" style="border-left-color: #e67e22;">
+      <h3>✨ Фокус дня</h3>
+      <div id="focusOfDayContent">Загрузка...</div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px;">
+      <button class="btn" onclick="navigateTo('foci')">📚 Все фокусы</button>
+      <button class="btn btn-secondary" onclick="navigateTo('quiz')">🎯 Тренировка</button>
+      <button class="btn btn-secondary" onclick="navigateTo('surgery')">🔬 Хирургия</button>
+      <button class="btn btn-secondary" onclick="navigateTo('diary')">📝 Дневник</button>
+    </div>
+  </div>
+
+  <!-- ===== ФОКУСЫ (список) ===== -->
+  <div class="page" id="page-foci">
+    <div class="flex-between">
+      <h2>📚 Фокусы языка</h2>
+      <button onclick="navigateTo('dashboard')" style="background:none;border:none;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+
+    <div class="filter-group" id="filterGroup">
+      <button class="filter-btn active" data-filter="all">Все</button>
+      <button class="filter-btn" data-filter="past">Прошлое</button>
+      <button class="filter-btn" data-filter="present">Настоящее</button>
+      <button class="filter-btn" data-filter="future">Будущее</button>
+      <button class="filter-btn" data-filter="transcend">4 Дальше</button>
+    </div>
+
+    <div id="fociList"></div>
+  </div>
+
+  <!-- ===== СТРАНИЦА ФОКУСА (детально) ===== -->
+  <div class="page" id="page-focus-detail">
+    <div class="focus-detail" id="focusDetailContainer">
+      <button class="back-btn" onclick="navigateTo('foci')">← Назад</button>
+      <div id="focusDetailContent"></div>
+    </div>
+  </div>
+
+  <!-- ===== ТРЕНИРОВКА ===== -->
+  <div class="page" id="page-quiz">
+    <div class="flex-between">
+      <h2>🎯 Угадай фокус</h2>
+      <button onclick="navigateTo('dashboard')" style="background:none;border:none;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <p style="color:#888;font-size:14px;">Прочитай ситуацию и выбери правильный фокус</p>
+    <div id="quizScore" style="font-weight:600;margin:8px 0;">Правильно: 0</div>
+    <div id="quizContainer"></div>
+  </div>
+
+  <!-- ===== ЛИНГВИСТИЧЕСКАЯ ХИРУРГИЯ ===== -->
+  <div class="page" id="page-surgery">
+    <div class="flex-between">
+      <h2>🔬 Лингвистическая хирургия</h2>
+      <button onclick="navigateTo('dashboard')" style="background:none;border:none;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <p style="color:#888;font-size:14px;">Введи фразу, разбери на части и замени компоненты</p>
+    <input class="surgery-input" id="surgeryInput" placeholder="Например: Я всегда опаздываю на работу" value="Я всегда опаздываю на работу">
+    <button class="btn" style="margin-top:10px;width:100%;" onclick="runSurgery()">🔍 Разобрать</button>
+    <div id="surgeryResult"></div>
+  </div>
+
+  <!-- ===== ДНЕВНИК ===== -->
+  <div class="page" id="page-diary">
+    <div class="flex-between">
+      <h2>📝 Дневник практики</h2>
+      <button onclick="navigateTo('dashboard')" style="background:none;border:none;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+
+    <div style="background:#eaeef2;border-radius:14px;padding:16px;margin-bottom:16px;">
+      <input type="date" id="diaryDate" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:16px;background:#fff;">
+      <select id="diaryFocus" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:16px;margin-top:8px;background:#fff;">
+        <option value="">Выбери фокус</option>
+      </select>
+      <textarea id="diarySituation" placeholder="Ситуация (где применил?)" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:15px;margin-top:8px;min-height:60px;background:#fff;"></textarea>
+      <textarea id="diaryResult" placeholder="Что получилось?" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:15px;margin-top:8px;min-height:60px;background:#fff;"></textarea>
+      <button class="btn" style="width:100%;margin-top:10px;" onclick="saveDiary()">💾 Сохранить</button>
+    </div>
+
+    <h3 style="font-size:16px;margin:12px 0;">📋 Записи</h3>
+    <div id="diaryList"></div>
+  </div>
+
+  <!-- ===== НИЖНЕЕ МЕНЮ ===== -->
+  <nav class="bottom-nav">
+    <button class="active" data-page="dashboard"><span class="icon">📊</span>Главная</button>
+    <button data-page="foci"><span class="icon">📚</span>Фокусы</button>
+    <button data-page="quiz"><span class="icon">🎯</span>Тренировка</button>
+    <button data-page="surgery"><span class="icon">🔬</span>Хирургия</button>
+    <button data-page="diary"><span class="icon">📝</span>Дневник</button>
+  </nav>
+</div>
+
+<script>
+// ============================================================
+// ДАННЫЕ: 14 ФОКУСОВ ЯЗЫКА
+// ============================================================
+const FOCI_DATA = [
+  { id:"intention", name:"Намерение", short:"Отделяем поведение от мотива", time:"future", purpose:"reinforce",
+    why:"Разделение поведения и мотивации позволяет обойти защитные механизмы. Мозг перестаёт защищать действие и переключается на исследование потребности.",
+    questions:["Что для тебя важно, когда ты это делаешь?","Какую потребность ты удовлетворяешь этим действием?","Какая позитивная цель стоит за этим поведением?"],
+    examples:["— Я откладываю отчёты. — Что для тебя важно, когда ты откладываешь? — Избегаю стресса. — То есть ты хочешь спокойствия. Как ещё можно получить спокойствие?"],
+    exercises:["«Сними слой»: задавай вопрос «Что для тебя важно?» 5 раз, пока не выйдешь на базовую ценность."],
+    combinations:["Результат","Последствия"]
+  },
+  { id:"consequences", name:"Последствия", short:"Показываем цену выбора во времени", time:"future", purpose:"reinforce",
+    why:"Будущие сценарии активируют центры планирования. Когда человек видит негативный исход, он начинает искать альтернативы.",
+    questions:["Что будет, если ты продолжишь это делать через год?","Что хорошего и что плохого произойдёт, если ты изменишь?","Как это повлияет на твоих близких?"],
+    examples:["— Я не могу бросить курить. — Что будет с твоим здоровьем через 10 лет? Что скажут твои дети?"],
+    exercises:["«Два сценария»: напиши подробно, что будет через 2 года, если ничего не изменишь, и что будет, если изменишь."],
+    combinations:["Намерение","Результат"]
+  },
+  { id:"result", name:"Результат", short:"Переключаем с проблемы на цель", time:"present", purpose:"switch",
+    why:"Переключение с проблемы на цель активирует систему вознаграждения. Мозг начинает генерировать варианты, а не искать препятствия.",
+    questions:["Что бы ты хотел вместо этого?","Как ты поймёшь, что достиг желаемого?","Какой первый шаг можно сделать уже сегодня?"],
+    examples:["— Я боюсь выступать на публике. — А как бы ты хотел чувствовать себя во время выступления? Какую реакцию слушателей ты хотел бы видеть?"],
+    exercises:["«Переключи вопрос»: возьми 5 своих жалоб и переформулируй их как цели."],
+    combinations:["Намерение","Последствия"]
+  },
+  { id:"model_world", name:"Модель мира", short:"Показываем, что это лишь одна из карт", time:"present", purpose:"weaken",
+    why:"Напоминание о субъективности восприятия создаёт когнитивную гибкость. Человек видит, что его правда — не единственная.",
+    questions:["В какой модели мира это утверждение верно?","А есть ли модель, где оно не работает?","Как бы на это посмотрел человек с другим опытом?"],
+    examples:["— Меня не ценят. — А как бы это увидел кто-то со стороны? Может, он сказал бы, что ты просто не проявил себя?"],
+    exercises:["«Три очка зрения»: опиши ситуацию с твоей точки зрения, с точки зрения другого человека и со стороны."],
+    combinations:["Переопределение","Противоположный пример"]
+  },
+  { id:"division", name:"Разделение", short:"Разбиваем проблему на части", time:"past", purpose:"weaken",
+    why:"Мозг не может одновременно удерживать целостную угрозу и её части. Разбивка снижает эмоциональный заряд.",
+    questions:["Из каких частей состоит эта проблема?","Какая часть вызывает самый сильный страх?","Можно ли разбить это на шаги?"],
+    examples:["— Я боюсь публичных выступлений. — Какая именно часть пугает: подготовка, выход на сцену, ответы на вопросы?"],
+    exercises:["Выбери сложную задачу и разбей её на 5 простых шагов."],
+    combinations:["Результат","Последствия"]
+  },
+  { id:"unification", name:"Объединение", short:"Включаем проблему в широкий контекст", time:"past", purpose:"switch",
+    why:"Включение проблемы в более широкий контекст уменьшает её значимость. Мозг переключается с «это всё» на «это лишь часть».",
+    questions:["Частью чего более крупного является эта ситуация?","Что ещё входит в этот контекст?"],
+    examples:["— Я допустил ошибку в расчётах. — Но ты же сейчас ведёшь большой проект, и ошибка — это часть обучения."],
+    exercises:["Возьми проблему и найди 3 более широких контекста, в которые она вписывается."],
+    combinations:["Разделение","Результат"]
+  },
+  { id:"analogy", name:"Аналогия", short:"Используем образ из другой сферы", time:"past", purpose:"switch",
+    why:"Аналогия активирует старые нейронные связи, перенося знакомое решение на новую ситуацию.",
+    questions:["На что это похоже?","С чем можно это сравнить?"],
+    examples:["— Этот проект кажется мне непосильным. — На что это похоже? — Как восхождение на гору. — В восхождении нужно разбить маршрут на этапы."],
+    exercises:["Подбери метафору к своей текущей жизненной ситуации."],
+    combinations:["Разделение","Результат"]
+  },
+  { id:"frame_shift", name:"Изменение размера фрейма", short:"Меняем временные границы", time:"future", purpose:"switch",
+    why:"Расширение или сужение временных границ меняет оценку события. Отдалённая перспектива снижает остроту эмоций.",
+    questions:["Как это будет выглядеть через 5 лет?","Насколько это важно в масштабах всей жизни?"],
+    examples:["— Я боюсь ошибиться. — Представь, что эта ошибка случилась с тобой 5 лет назад. Она всё ещё имеет значение?"],
+    exercises:["Возьми текущую проблему и представь её через 1 год, 5 лет и 10 лет."],
+    combinations:["Последствия","Модель мира"]
+  },
+  { id:"redefinition", name:"Переопределение", short:"Меняем смысл через замену слов", time:"future", purpose:"switch",
+    why:"Слова связаны с эмоциями через личный опыт. Замена слова меняет эмоциональную оценку, даже если факт остаётся тем же.",
+    questions:["Как ещё можно назвать это?","Какое слово точнее описывает эту ситуацию?"],
+    examples:["— Мы постоянно спорим. — То есть вы горячо обсуждаете рабочие вопросы?"],
+    exercises:["Для 3 своих привычных проблем найди по 2 альтернативных названия."],
+    combinations:["Результат","Модель мира"]
+  },
+  { id:"counterexample", name:"Противоположный пример", short:"Ищем исключение из правила", time:"present", purpose:"weaken",
+    why:"Обобщения не выдерживают проверки конкретными исключениями. Это вызывает когнитивный диссонанс и ведёт к пересмотру убеждения.",
+    questions:["Было ли когда-нибудь иначе?","А есть ли случай, где это не работает?"],
+    examples:["— Я всегда неудачник. — А помнишь, как ты выиграл в школьной олимпиаде?"],
+    exercises:["Вспомни 3 своих убеждения и найди по 2 исключения для каждого."],
+    combinations:["Модель мира","Переопределение"]
+  },
+  { id:"reality_strategy", name:"Стратегия реальности", short:"Проверяем факты vs интерпретации", time:"present", purpose:"weaken",
+    why:"Отделение фактов от интерпретаций ослабляет эмоциональное влияние и возвращает человека в реальность.",
+    questions:["Что именно произошло на самом деле?","Какие факты подтверждают это?"],
+    examples:["— Меня никто не любит. — Кто именно тебе это сказал? Или это твой вывод?"],
+    exercises:["Запиши 3 убеждения и факты, которые их подтверждают или опровергают."],
+    combinations:["Модель мира","Противоположный пример"]
+  },
+  { id:"criteria_hierarchy", name:"Иерархия критериев", short:"Смещаем фокус на важные ценности", time:"future", purpose:"reinforce",
+    why:"Обращение к высшим ценностям активирует более глубокие структуры личности. Текущее убеждение теряет приоритет.",
+    questions:["Что для тебя важнее всего в этой ситуации?","Какая ценность ещё более значима?"],
+    examples:["— Я боюсь открыть бизнес. — А что для тебя важнее: страх или возможность обеспечить будущее семьи?"],
+    exercises:["Составь свою иерархию ценностей."],
+    combinations:["Намерение","Результат"]
+  },
+  { id:"apply_to_self", name:"Применение к себе", short:"Применяем правило к самому себе", time:"past", purpose:"weaken",
+    why:"Зеркальное отражение правила на самого говорящего создаёт когнитивный диссонанс. Человек вынужден изменить правило или признать его несправедливость.",
+    questions:["Это правило применимо только к другим или к тебе тоже?","Если ты так считаешь, почему сам так не делаешь?"],
+    examples:["— Люди не должны опаздывать. — А ты сам всегда приходишь вовремя?"],
+    exercises:["Сформулируй правило, которое ты применяешь к другим, и проверь, как оно работает на тебе."],
+    combinations:["Модель мира","Противоположный пример"]
+  },
+  { id:"metaframe", name:"Метафрейм", short:"Выходим на уровень наблюдателя", time:"transcend", purpose:"switch",
+    why:"Выход на уровень наблюдения за собственным мышлением активирует мета-познание. Человек видит убеждение как объект, а не как истину.",
+    questions:["Что ты думаешь о самом этом убеждении?","Помогает ли оно тебе жить?","Если бы ты смотрел на это со стороны, что бы ты увидел?"],
+    examples:["— Мне сложно менять убеждения. — А это убеждение о том, что сложно меняться, можно изменить?"],
+    exercises:["Запиши убеждение и посмотри на него «сверху» — что ты видишь?"],
+    combinations:["Намерение","Результат"]
+  }
+];
+
+const TIME_MAP = { past:'Прошлое', present:'Настоящее', future:'Будущее', transcend:'4 Дальше' };
+const PURPOSE_MAP = { reinforce:'Усилить', weaken:'Ослабить', switch:'Переключить' };
+
+const QUIZ_DATA = [
+  { situation: "Человек говорит: 'Я всегда опаздываю на работу, я безнадёжен'", focusId: "counterexample" },
+  { situation: "Клиент говорит: 'Это слишком дорого для меня'", focusId: "intention" },
+  { situation: "Сотрудник: 'Я боюсь выступать на совещании, меня осудят'", focusId: "result" },
+  { situation: "Подруга: 'Меня никто не понимает, все против меня'", focusId: "model_world" },
+  { situation: "Ты: 'Я не могу начать проект, он слишком огромный'", focusId: "division" },
+  { situation: "Друг: 'Я опять накосячил, это конец'", focusId: "frame_shift" },
+  { situation: "Коллега: 'Мы постоянно спорим, это бесполезно'", focusId: "redefinition" },
+  { situation: "Ты: 'У меня нет таланта к переговорам'", focusId: "apply_to_self" },
+  { situation: "Подчинённый: 'Начальник меня не ценит'", focusId: "model_world" },
+  { situation: "Ты: 'Я не могу изменить свою жизнь'", focusId: "metaframe" },
+  { situation: "Близкий: 'Я боюсь рискнуть и потерять стабильность'", focusId: "criteria_hierarchy" },
+  { situation: "Ты: 'Я всегда делаю всё не так'", focusId: "counterexample" },
+  { situation: "Клиент: 'Я пробовал всё, ничего не работает'", focusId: "reality_strategy" },
+  { situation: "Ты: 'У меня нет времени на спорт'", focusId: "consequences" },
+  { situation: "Друг: 'Я не могу найти работу'", focusId: "result" }
+];
+
+// ============================================================
+// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+// ============================================================
+let currentPage = 'dashboard';
+let quizIndex = 0;
+let quizScore = 0;
+let quizAnswered = false;
+let viewedFoci = JSON.parse(localStorage.getItem('nlp_viewed_foci') || '[]');
+let diaryEntries = JSON.parse(localStorage.getItem('nlp_diary') || '[]');
+let darkMode = localStorage.getItem('nlp_dark_mode') === 'true';
+let currentFilter = 'all';
+
+// ============================================================
+// ФУНКЦИИ ДЛЯ РАБОТЫ
+// ============================================================
+function getFocus(id) { return FOCI_DATA.find(f => f.id === id); }
+
+function updateProgress() {
+  const count = viewedFoci.length;
+  const total = FOCI_DATA.length;
+  const el = document.getElementById('progressText');
+  const bar = document.getElementById('progressBar');
+  if (el) el.textContent = `Изучено: ${count} из ${total}`;
+  if (bar) bar.style.width = `${(count/total)*100}%`;
+}
+
+function renderFociList(filter) {
+  const container = document.getElementById('fociList');
+  if (!container) return;
+  const filtered = filter === 'all' ? FOCI_DATA : FOCI_DATA.filter(f => f.time === filter);
+  container.innerHTML = filtered.map(f => `
+    <div class="card" onclick="openFocus('${f.id}')" style="border-left-color: ${f.time === 'past' ? '#6b8c6b' : f.time === 'present' ? '#6b7c9c' : f.time === 'future' ? '#c49a6b' : '#9a7cac'};">
+      <h3>${f.name}</h3>
+      <p style="font-size:14px;color:#888;">${f.short}</p>
+      <div class="badges">
+        <span class="badge time-${f.time}">${TIME_MAP[f.time]}</span>
+        <span class="badge purpose-${f.purpose}">${PURPOSE_MAP[f.purpose]}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openFocus(id) {
+  if (!viewedFoci.includes(id)) {
+    viewedFoci.push(id);
+    localStorage.setItem('nlp_viewed_foci', JSON.stringify(viewedFoci));
+    updateProgress();
+  }
+  const f = getFocus(id);
+  if (!f) return;
+  const container = document.getElementById('focusDetailContent');
+  if (!container) return;
+  container.innerHTML = `
+    <div class="block">
+      <h3>${f.name}</h3>
+      <p style="color:#888;font-size:14px;">${f.short}</p>
+      <div class="badges" style="margin-top:8px;">
+        <span class="badge time-${f.time}">${TIME_MAP[f.time]}</span>
+        <span class="badge purpose-${f.purpose}">${PURPOSE_MAP[f.purpose]}</span>
+      </div>
+    </div>
+    <div class="block">
+      <h4>🧠 Почему работает</h4>
+      <p>${f.why}</p>
+    </div>
+    <div class="block">
+      <h4>❓ Ключевые вопросы</h4>
+      <ul>${f.questions.map(q => `<li>${q}</li>`).join('')}</ul>
+    </div>
+    <div class="block">
+      <h4>📖 Примеры</h4>
+      ${f.examples.map(ex => `<div class="example-box">${ex}</div>`).join('')}
+    </div>
+    <div class="block">
+      <h4>🧩 Упражнения</h4>
+      <ul>${f.exercises.map(ex => `<li>${ex}</li>`).join('')}</ul>
+    </div>
+    <div class="block">
+      <h4>🔗 Связки</h4>
+      <p>${f.combinations.join(' · ')}</p>
+    </div>
+  `;
+  navigateTo('focus-detail');
+}
+
+// ============================================================
+// НАВИГАЦИЯ
+// ============================================================
+function navigateTo(page) {
+  currentPage = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const target = document.getElementById(`page-${page}`);
+  if (target) target.classList.add('active');
+  else return;
+
+  // Обновить активную кнопку в нижнем меню
+  document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
+  const navBtn = document.querySelector(`.bottom-nav button[data-page="${page}"]`);
+  if (navBtn) navBtn.classList.add('active');
+
+  // Рендеринг контента при переходе
+  if (page === 'foci') renderFociList(currentFilter);
+  if (page === 'quiz') renderQuiz();
+  if (page === 'diary') {
+    renderDiary();
+    populateDiaryFocus();
+  }
+  if (page === 'dashboard') updateProgress();
+}
+
+// ============================================================
+// ТРЕНИРОВКА
+// ============================================================
+function renderQuiz() {
+  const container = document.getElementById('quizContainer');
+  if (!container) return;
+  if (quizIndex >= QUIZ_DATA.length) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:30px 0;">
+        <p style="font-size:24px;">🎉</p>
+        <p>Ты прошёл все вопросы!</p>
+        <button class="btn" onclick="resetQuiz()">Начать заново</button>
+      </div>
+    `;
+    return;
+  }
+  const q = QUIZ_DATA[quizIndex];
+  const correctFocus = getFocus(q.focusId);
+  const wrongOptions = FOCI_DATA.filter(f => f.id !== q.focusId).sort(() => Math.random() - 0.5).slice(0, 3);
+  const options = [q.focusId, ...wrongOptions.map(f => f.id)].sort(() => Math.random() - 0.5);
+
+  let html = `
+    <div style="background:#eaeef2;border-radius:14px;padding:16px;margin-bottom:12px;">
+      <p style="font-size:16px;font-weight:500;">${q.situation}</p>
+    </div>
+    <div id="quizOptions">
+  `;
+  options.forEach(oid => {
+    const f = getFocus(oid);
+    html += `<button class="quiz-option" data-id="${oid}">${f.name}</button>`;
+  });
+  html += `</div><div id="quizFeedback"></div>`;
+  html += `<div style="margin-top:12px;text-align:center;font-size:14px;color:#888;">Вопрос ${quizIndex+1} из ${QUIZ_DATA.length}</div>`;
+  container.innerHTML = html;
+
+  // Навесить обработчики
+  document.querySelectorAll('#quizOptions .quiz-option').forEach(btn => {
+    btn.addEventListener('click', function() {
+      answerQuiz(this.dataset.id);
+    });
+  });
+
+  quizAnswered = false;
+  document.getElementById('quizScore').textContent = `Правильно: ${quizScore}`;
+}
+
+function answerQuiz(selectedId) {
+  if (quizAnswered) return;
+  quizAnswered = true;
+  const q = QUIZ_DATA[quizIndex];
+  const correct = q.focusId;
+  const correctFocus = getFocus(correct);
+  const feedback = document.getElementById('quizFeedback');
+
+  document.querySelectorAll('#quizOptions .quiz-option').forEach(btn => {
+    btn.style.pointerEvents = 'none';
+    if (btn.dataset.id === correct) btn.classList.add('correct');
+    if (btn.dataset.id === selectedId && selectedId !== correct) btn.classList.add('wrong');
+  });
+
+  if (selectedId === correct) {
+    quizScore++;
+    document.getElementById('quizScore').textContent = `Правильно: ${quizScore}`;
+    feedback.innerHTML = `<div class="quiz-feedback correct">✅ Верно! Это фокус «${correctFocus.name}».</div>`;
+  } else {
+    const selectedFocus = getFocus(selectedId);
+    feedback.innerHTML = `<div class="quiz-feedback wrong">❌ Неверно. Правильный фокус — «${correctFocus.name}».</div>`;
+  }
+
+  setTimeout(() => {
+    quizIndex++;
+    renderQuiz();
+  }, 2500);
+}
+
+function resetQuiz() {
+  quizIndex = 0;
+  quizScore = 0;
+  renderQuiz();
+}
+
+// ============================================================
+// ЛИНГВИСТИЧЕСКАЯ ХИРУРГИЯ
+// ============================================================
+function runSurgery() {
+  const input = document.getElementById('surgeryInput').value.trim();
+  if (!input) return;
+  const container = document.getElementById('surgeryResult');
+  if (!container) return;
+
+  const subjectOptions = ['Я', 'Мой опыт', 'Мои мысли', 'Моё тело', 'Мой подход'];
+  const predicateOptions = ['учусь', 'пробую', 'могу', 'хочу', 'выбираю', 'осваиваю', 'развиваю'];
+  const objectOptions = ['эту задачу', 'этот этап', 'свою жизнь', 'этот проект', 'текущую ситуацию'];
+
+  let html = `
+    <div class="surgery-result">
+      <p><strong>Исходная фраза:</strong> «${input}»</p>
+      <div style="margin:12px 0;">
+        <p><strong>Компоненты:</strong></p>
+        <div class="surgery-parts">
+          <span class="surgery-part">Субъект: <select id="surgSubject">${subjectOptions.map(s => `<option value="${s}">${s}</option>`).join('')}</select></span>
+          <span class="surgery-part">Предикат: <select id="surgPredicate">${predicateOptions.map(p => `<option value="${p}">${p}</option>`).join('')}</select></span>
+          <span class="surgery-part">Объект: <select id="surgObject">${objectOptions.map(o => `<option value="${o}">${o}</option>`).join('')}</select></span>
+        </div>
+      </div>
+      <button class="btn" style="width:100%;margin:8px 0;" onclick="applySurgery()">🔧 Применить замены</button>
+      <div id="surgeryResultNew"></div>
+    </div>
+  `;
+  container.innerHTML = html;
+}
+
+function applySurgery() {
+  const subj = document.getElementById('surgSubject').value;
+  const pred = document.getElementById('surgPredicate').value;
+  const obj = document.getElementById('surgObject').value;
+  const newPhrase = `${subj} ${pred} ${obj}`;
+  const resultDiv = document.getElementById('surgeryResultNew');
+  if (resultDiv) {
+    resultDiv.innerHTML = `
+      <p style="margin-top:8px;"><strong>Новая фраза:</strong> «${newPhrase}»</p>
+      <p style="font-size:13px;color:#888;">Смысл сохранился, но восприятие изменилось.</p>
+    `;
+  }
+}
+
+// ============================================================
+// ДНЕВНИК
+// ============================================================
+function renderDiary() {
+  const list = document.getElementById('diaryList');
+  if (!list) return;
+  if (diaryEntries.length === 0) {
+    list.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Нет записей. Начни практиковаться!</p>';
+    return;
+  }
+  list.innerHTML = diaryEntries.slice().reverse().map((e, i) => {
+    const idx = diaryEntries.length - 1 - i;
+    return `
+      <div class="diary-entry">
+        <button class="delete-btn" onclick="deleteDiary(${idx})">✕</button>
+        <div class="date">${e.date}</div>
+        <div class="focus-name">${e.focus || 'Без фокуса'}</div>
+        <div class="text">${e.situation || ''}</div>
+        <div class="text" style="color:#888;font-size:14px;">→ ${e.result || ''}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function saveDiary() {
+  const date = document.getElementById('diaryDate').value || new Date().toISOString().slice(0,10);
+  const focus = document.getElementById('diaryFocus').value;
+  const situation = document.getElementById('diarySituation').value.trim();
+  const result = document.getElementById('diaryResult').value.trim();
+  if (!situation && !result) return alert('Заполни хотя бы одно поле');
+  diaryEntries.push({ date, focus, situation, result });
+  localStorage.setItem('nlp_diary', JSON.stringify(diaryEntries));
+  document.getElementById('diarySituation').value = '';
+  document.getElementById('diaryResult').value = '';
+  renderDiary();
+}
+
+function deleteDiary(index) {
+  diaryEntries.splice(index, 1);
+  localStorage.setItem('nlp_diary', JSON.stringify(diaryEntries));
+  renderDiary();
+}
+
+function populateDiaryFocus() {
+  const sel = document.getElementById('diaryFocus');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Выбери фокус</option>' + FOCI_DATA.map(f => `<option value="${f.name}" ${f.name === current ? 'selected' : ''}>${f.name}</option>`).join('');
+}
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ
+// ============================================================
+function init() {
+  // Тёмная тема
+  if (darkMode) {
+    document.body.classList.add('dark');
+    document.getElementById('themeToggle').textContent = '☀️';
+  }
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    darkMode = !darkMode;
+    document.body.classList.toggle('dark');
+    document.getElementById('themeToggle').textContent = darkMode ? '☀️' : '🌙';
+    localStorage.setItem('nlp_dark_mode', darkMode);
+  });
+
+  // Фильтры
+  document.querySelectorAll('#filterGroup .filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#filterGroup .filter-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      currentFilter = this.dataset.filter;
+      renderFociList(currentFilter);
+    });
+  });
+
+  // Дневник: дата сегодня
+  const dateInput = document.getElementById('diaryDate');
+  if (dateInput) dateInput.value = new Date().toISOString().slice(0,10);
+
+  // Фокус дня
+  const randomFocus = FOCI_DATA[Math.floor(Math.random() * FOCI_DATA.length)];
+  const focusDayContent = document.getElementById('focusOfDayContent');
+  if (focusDayContent) {
+    focusDayContent.innerHTML = `
+      <strong>${randomFocus.name}</strong><br>
+      <span style="font-size:14px;color:#888;">${randomFocus.short}</span><br>
+      <button class="btn btn-secondary" style="margin-top:8px;padding:6px 16px;font-size:13px;" onclick="openFocus('${randomFocus.id}')">Подробнее</button>
+    `;
+  }
+
+  // Прогресс
+  updateProgress();
+
+  // Навигация снизу
+  document.querySelectorAll('.bottom-nav button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      navigateTo(this.dataset.page);
+    });
+  });
+
+  // Стартовая страница
+  navigateTo('dashboard');
+}
+
+// Запуск после полной загрузки DOM
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>
