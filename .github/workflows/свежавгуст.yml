@@ -1,0 +1,225 @@
+name: Digital Garden with Obsidian Features
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'src/site/notes/**'  # Только при изменении заметок
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# =============== НОВИНКА: ОТМЕНА СТАРЫХ ЗАПУСКОВ ===============
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # =============== НОВИНКА: PYTHON ДЛЯ КОНВЕРТАЦИИ ===============
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install Python markdown library
+        run: pip install markdown
+
+      # =============== НОВИНКА: КОНВЕРТАЦИЯ .md → .html ===============
+      - name: 🌐 Convert MD to HTML
+        run: |
+          echo "🌐 Конвертирую .md в .html..."
+          cd src/site/notes
+          mkdir -p html_output
+          
+          python3 << 'EOF'
+          import os, re, markdown
+          
+          input_dir = "."
+          output_dir = "html_output"
+          
+          def extract_title(content):
+              match = re.search(r'^# (.+)$', content, re.MULTILINE)
+              return match.group(1).strip() if match else None
+          
+          for root, dirs, files in os.walk(input_dir):
+              for file in files:
+                  if file.endswith(".md"):
+                      md_path = os.path.join(root, file)
+                      rel_path = os.path.relpath(md_path, input_dir)
+                      html_path = rel_path[:-3] + ".html"
+                      target = os.path.join(output_dir, html_path)
+                      os.makedirs(os.path.dirname(target), exist_ok=True)
+                      
+                      with open(md_path, 'r', encoding='utf-8') as f:
+                          content = f.read()
+                      
+                      title = extract_title(content) or os.path.basename(file)[:-3]
+                      html_content = markdown.markdown(content, extensions=['extra', 'toc'])
+                      
+                      full_html = f"""<!DOCTYPE html>
+                      <html>
+                      <head>
+                          <meta charset="UTF-8">
+                          <title>{title}</title>
+                          <style>
+                              body{{font-family:system-ui;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6}}
+                              h1,h2,h3{{color:#2c3e50}}a{{color:#3498db}}code{{background:#f4f4f4;padding:2px 6px;border-radius:4px}}
+                              pre{{background:#f4f4f4;padding:10px;border-radius:4px;overflow-x:auto}}
+                              blockquote{{border-left:4px solid #3498db;padding-left:20px;color:#555}}
+                              img{{max-width:100%}}
+                          </style>
+                      </head>
+                      <body>
+                          {html_content}
+                          <hr><p><small>Сгенерировано из: {rel_path}</small></p>
+                      </body>
+                      </html>"""
+                      with open(target, 'w', encoding='utf-8') as f:
+                          f.write(full_html)
+                      print(f"✅ {rel_path} → {html_path}")
+          EOF
+          
+          echo "✅ Конвертация завершена"
+
+      # =============== НОВИНКА: АНАЛИЗ СТРУКТУРЫ (JSON) ===============
+      - name: 📊 Generate site structure
+        run: |
+          echo "📊 Генерирую структуру сайта..."
+          cd src/site/notes
+          
+          echo '{ "generated": "'$(date)'", "pages": [' > site-structure.json
+          first=true
+          find ./html_output -name "*.html" -not -name "index.html" | sort | while read file; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              echo ',' >> site-structure.json
+            fi
+            rel_path="${file#./html_output/}"
+            title=$(grep -o '<title>[^<]*</title>' "$file" | sed 's/<title>\(.*\)<\/title>/\1/')
+            echo '  { "file": "'$rel_path'", "title": "'$title'" }' >> site-structure.json
+          done
+          echo '] }' >> site-structure.json
+          
+          # Копируем JSON в html_output
+          cp site-structure.json html_output/
+          echo "✅ Структура создана"
+
+      # =============== НОВИНКА: ГЛАВНАЯ С ПОИСКОМ ===============
+      - name: 📋 Generate index with search
+        run: |
+          echo "📋 Генерирую главную страницу с поиском..."
+          cd src/site/notes
+          
+          cat > html_output/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><meta charset="UTF-8"><title>🌿 Digital Garden</title>
+          <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: system-ui, sans-serif; background: #0f0f1a; color: #e0e0e0; }
+          .header { text-align: center; padding: 3rem 1rem; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-bottom: 1px solid #2a2a3e; }
+          .header h1 { font-size: 3rem; color: #fff; }
+          .header p { color: #aaa; max-width: 600px; margin: 1rem auto; }
+          .search-box { max-width: 600px; margin: 2rem auto; padding: 0 2rem; }
+          #search-input { width: 100%; padding: 1rem 1.5rem; background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 50px; color: #fff; font-size: 1rem; }
+          #search-input:focus { outline: none; border-color: #4a90e2; }
+          .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; padding: 2rem; max-width: 1400px; margin: 0 auto; }
+          .card { background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 12px; padding: 1.5rem; transition: all 0.3s ease; text-decoration: none; color: inherit; display: block; }
+          .card:hover { transform: translateY(-5px); border-color: #4a90e2; box-shadow: 0 10px 30px rgba(74,144,226,0.2); }
+          .card h3 { color: #fff; margin-bottom: 0.5rem; }
+          .card .path { color: #888; font-size: 0.9rem; }
+          .card .tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+          .tag { background: rgba(74,144,226,0.1); color: #4a90e2; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.85rem; }
+          .empty { text-align: center; padding: 2rem; color: #888; }
+          .footer { text-align: center; padding: 2rem; color: #555; border-top: 1px solid #2a2a3e; margin-top: 2rem; }
+          </style>
+          </head>
+          <body>
+          <div class="header">
+            <h1>🌿 Digital Garden</h1>
+            <p>Коллекция взаимосвязанных мыслей и заметок</p>
+          </div>
+          <div class="search-box">
+            <input type="text" id="search-input" placeholder="🔍 Поиск по заметкам...">
+          </div>
+          <div class="grid" id="pages-container">
+            <p class="empty">Загрузка заметок...</p>
+          </div>
+          <div class="footer">Автоматическая сборка</div>
+          
+          <script>
+          async function loadPages() {
+            try {
+              const response = await fetch('site-structure.json');
+              const data = await response.json();
+              renderPages(data.pages);
+            } catch (error) {
+              document.getElementById('pages-container').innerHTML = 
+                `<p class="empty">⚠️ Не удалось загрузить структуру</p>`;
+            }
+          }
+          
+          function renderPages(pages) {
+            const container = document.getElementById('pages-container');
+            let html = '';
+            pages.forEach(page => {
+              const tags = ['html'];
+              if (page.file.includes('/')) tags.push(page.file.split('/')[0]);
+              
+              html += `
+                <a href="${page.file}" class="card">
+                  <h3>${page.title || page.file}</h3>
+                  <div class="path">📁 ${page.file}</div>
+                  <div class="tags">
+                    ${tags.map(t => `<span class="tag">${t}</span>`).join('')}
+                  </div>
+                </a>
+              `;
+            });
+            container.innerHTML = html || '<p class="empty">Нет заметок</p>';
+            
+            document.getElementById('search-input').addEventListener('input', function(e) {
+              const term = e.target.value.toLowerCase();
+              document.querySelectorAll('.card').forEach(card => {
+                const title = card.querySelector('h3').textContent.toLowerCase();
+                card.style.display = title.includes(term) ? 'block' : 'none';
+              });
+            });
+          }
+          
+          document.addEventListener('DOMContentLoaded', loadPages);
+          </script>
+          </body>
+          </html>
+          EOF
+          
+          echo "✅ Главная страница создана"
+
+      # =============== ПОДГОТОВКА К ДЕПЛОЮ ===============
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: src/site/notes/html_output/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
